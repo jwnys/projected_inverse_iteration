@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pii"
+version = "0.1.0"
+description = "Projected Inverse Iteration (PII): an eigenvalue approach to ground-state computation with neural quantum states, built on NetKet."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Hang Zhang" },
+    { name = "Victor Armegioiu" },
+    { name = "Juan Carrasquilla" },
+    { name = "Siddhartha Mishra" },
+    { name = "Johannes Müller" },
+    { name = "Jannes Nys" },
+    { name = "Marius Zeinhofer" },
+]
+dependencies = [
+    "netket",
+    "jax",
+    "einops",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "matplotlib"]
+
+[tool.setuptools.packages.find]
+include = ["pii*"]
