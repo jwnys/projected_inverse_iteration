@@ -197,21 +197,25 @@ class VMC(AbstractOptimizationDriver):
                 "`mode='complex'` (or `mode=None` to auto-detect)."
             )
         if self._mode == "real":
-            # mode='real' keeps only Re(log ψ); if the ansatz has a complex
-            # log-amplitude (e.g. RBMRealParams) this silently discards the phase
-            # and gives wrong energies. Warn loudly (it is only correct for
-            # real-output, sign-structured wavefunctions).
-            test_out = self.state._apply_fun(
-                self.state.variables,
-                self.state.hilbert.random_state(jax.random.key(0), 2),
+            # mode='real' keeps only Re(log ψ); if NetKet's own auto-detection
+            # (jacobian_default_mode) would pick 'complex' the ansatz has a complex
+            # log-amplitude (e.g. RBMRealParams), so mode='real' silently discards
+            # the phase and gives wrong energies. Warn loudly (mode='real' is only
+            # correct for real-output, sign-structured wavefunctions).
+            auto_mode = nkjax.jacobian_default_mode(
+                self.state._apply_fun,
+                self.state.parameters,
+                self.state.model_state,
+                self.state.hilbert.random_state(jax.random.key(0), 3),
+                warn=False,
             )
-            if jnp.iscomplexobj(test_out):
+            if auto_mode == "complex":
                 warn(
                     "`mode='real'` is being used with an ansatz that has a "
-                    "complex-valued log-amplitude: this truncates the phase and "
-                    "is almost certainly wrong (it is only valid for real-output, "
-                    "sign-structured wavefunctions). Use `mode='complex'` "
-                    "(or `mode=None` to auto-detect).",
+                    "complex-valued log-amplitude (NetKet auto-detects 'complex'): "
+                    "this truncates the phase and is almost certainly wrong (it is "
+                    "only valid for real-output, sign-structured wavefunctions). "
+                    "Use `mode='complex'` (or `mode=None` to auto-detect).",
                     stacklevel=2,
                 )
 

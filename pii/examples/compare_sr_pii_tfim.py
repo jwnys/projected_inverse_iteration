@@ -24,6 +24,7 @@ from pathlib import Path
 
 import numpy as np
 import jax.numpy as jnp
+from jax.nn.initializers import normal
 import optax
 import netket as nk
 import matplotlib.pyplot as plt
@@ -41,19 +42,37 @@ g = nk.graph.Chain(L, pbc=True)
 hi = nk.hilbert.Spin(s=0.5, N=g.n_nodes)
 H = nk.operator.Ising(hilbert=hi, graph=g, h=h)
 
-# Exact two lowest eigenvalues -> ground-state energy and spectral gap.
+# Exact spectrum endpoints -> ground-state energy, gap, and spectral spread Γ.
+import scipy.sparse.linalg as sla
+
 E0, E1 = nk.exact.lanczos_ed(H, k=2, compute_eigenvectors=False)
+Emax = float(sla.eigsh(H.to_sparse(), k=1, which="LA", return_eigenvectors=False)[0])
 gap = E1 - E0
+Gamma = Emax - E0  # spectral spread
 tau = E0 - 0.1 * gap  # undershoot by fraction of the gap
-print(f"TFIM {g.extent}, h/J={h};  E0 = {E0:.6f}, gap Δ = {gap:.4f},  τ = {tau:.6f}")
+
+# SR has a hard step-size threshold η < 1/Γ = 1/(Emax−E0): for η ≥ 1/Γ it diverges
+# (paper Theorem 2). PII has no such limit and uses η = 1.
+eta_sr_max = 1.0 / Gamma
+print(f"TFIM {g.extent}, h/J={h};  E0 = {E0:.6f}, gap Δ = {gap:.4f}, "
+      f"spread Γ = {Gamma:.4f},  τ = {tau:.6f}")
+print(f"SR critical learning rate  η_max = 1/Γ = {eta_sr_max:.4g}  "
+      f"(SR diverges for η ≥ this; we use lr_sr below it). PII uses η = 1.")
 
 # Each entry: a learning rate and the pii.VMC keyword arguments. SR needs a small
 # learning rate; PII uses η = 1.
 
-lr_sr = 2e-2
+lr_sr = eta_sr_max
 diag_shift_sr = 1e-4
-lr_pii = 0.5
-diag_shift_pii = 1e-2
+# PII's natural learning rate is η = 1: the update ξ = Q⁻¹(½∇E) already *is* the
+# (Galerkin-projected) inverse-iteration step (paper Eq. 5), so η=1 applies it
+# exactly.
+lr_pii = 1.0
+diag_shift_pii = 1e-3
+
+# For stability, we will halve both optimal learning rates.
+lr_pii /= 2.0
+lr_sr /= 2.0
 
 runs = {
     "SR": (lr_sr, dict(diag_shift=diag_shift_sr, pii=False, use_ntk=False)),
@@ -89,22 +108,30 @@ runs = {
     ),
 }
 
+# One shared model + one set of starting parameters used by *every* method, so the
+# comparison starts from an identical state. We use a larger init stddev (0.3) than
+# the default (0.01): the tiny default puts logψ≈0, i.e. ψ ≈ the uniform |+x⟩^N
+# state, which for this small TFIM is a special low-energy point the optimizer must
+# climb out of (the transient energy "bump"). A generic start removes that.
+# model = nk.models.RBM(alpha=1, param_dtype=complex)
+_init = normal(stddev=0.3)
+model = pii.models.RBMRealParams(
+    alpha=1, param_dtype=jnp.float64,
+    kernel_init=_init, hidden_bias_init=_init, visible_bias_init=_init,
+)
+init_params = nk.vqs.FullSumState(hi, model, seed=0).parameters
+
 results = {}
 for label, (lr, kw) in runs.items():
     kw = dict(kw)
-    # model = nk.models.RBM(alpha=1, param_dtype=complex)
-    model = pii.models.RBMRealParams(alpha=1, param_dtype=jnp.float64)
     if kw.pop("fullsum", False):
         vstate = nk.vqs.FullSumState(hi, model, seed=0)
     else:
-        sampler = nk.sampler.MetropolisLocal(hi, n_chains=512, sweep_size=hi.size*3)
+        sampler = nk.sampler.MetropolisLocal(hi, n_chains=512, sweep_size=hi.size * 3)
         vstate = nk.vqs.MCState(
-            sampler,
-            model, 
-            n_samples=1024, 
-            seed=0,
-            n_discard_per_chain=4
+            sampler, model, n_samples=1024, seed=0, n_discard_per_chain=4
         )
+    vstate.parameters = init_params  # identical starting parameters for every method
     opt = optax.sgd(lr)
     # RBMRealParams has a complex log-amplitude (real params), so use mode="complex".
     # (mode="real" would truncate the phase and is only for real-output ansätze.)
@@ -128,7 +155,8 @@ for label, energies in results.items():
     kw = runs[label][1]
     is_pii = kw.get("pii", False)
     is_fullsum = kw.get("fullsum", False)
-    rel = np.minimum.accumulate(np.abs((energies - E0) / E0))  # best so far
+    rel = np.abs((energies - E0) / E0)
+    # rel = np.minimum.accumulate(np.abs((energies - E0) / E0))  # best so far
     plt.semilogy(
         rel,
         label=label,
