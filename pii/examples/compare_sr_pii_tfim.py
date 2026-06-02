@@ -1,28 +1,35 @@
-r"""Compare SR and PII on a small 2D transverse-field Ising model (TFIM).
+r"""Compare SR and PII on a small, exactly-solvable transverse-field Ising model.
 
-At small ``h/J`` the TFIM is in the ordered phase where the finite-size spectral
-gap ``Δ = E1 - E0`` is small. SR is then "gap-limited" and converges slowly
-(rate ``ρ_SR ≈ 1 - ½ Δ/Γ``), whereas PII is gap-insensitive: with the shift
-undershooting the ground state by half the gap, ``τ = E0 - ½Δ``, the rate is
-``ρ_PII = |E0-τ|/|E1-τ| = 1/3`` independent of the gap, so it converges in a few
-iterations with learning rate ``η = 1`` (paper Fig. 2).
+A periodic TFIM chain of ``L`` spins (``Ĥ = −J Σ σᶻσᶻ − h Σ σˣ``), small enough to
+diagonalize exactly, so the relative energy error ``|(E − E0)/E0|`` against the
+true ground state can be tracked every iteration.
 
-This script exercises every variant of :class:`pii.VMC`:
+All methods start from *identical* parameters (see ``init_params``) for a fair
+comparison, and the script exercises every variant of :class:`pii.VMC`:
 
-- SR / minSR                        (``pii=False``)
-- PII dense / minPII / on-the-fly   (``pii=True``) -- these are mathematically
-  identical and produce the same trajectory (so they overlap on the plot)
-- PII-SPRING                        (``pii=True, momentum``)
-- PII dense on a FullSumState       (exact, no Monte Carlo noise)
+- **SR / minSR**            (``pii=False``) -- Stochastic Reconfiguration; its step
+  size is capped by the critical value ``η < 1/Γ`` (paper Theorem 2).
+- **PII dense / minPII / minPII on-the-fly** (``pii=True``) -- Projected Inverse
+  Iteration at its natural ``η = 1``. The three are mathematically identical and
+  overlap.
+- **minPII-SPRING**         (``pii=True, momentum``).
+- **SR FullSum / PII FullSum** -- exact (no Monte Carlo noise) references.
+
+With Monte Carlo, PII drives the energy to ~machine precision while SR is limited
+to a higher (sampling-noise) floor; the FullSum runs confirm both are exact in the
+noise-free limit. This system is tiny, so it demonstrates correctness and the
+SR-vs-PII contrast rather than the large-system, gap-closing regime of the paper.
 
 Run with::
 
     conda activate pii && python pii/examples/compare_sr_pii_tfim.py
 """
 
+import time
 from pathlib import Path
 
 import numpy as np
+import jax
 import jax.numpy as jnp
 from jax.nn.initializers import normal
 import optax
@@ -57,54 +64,67 @@ eta_sr_max = 1.0 / Gamma
 print(f"TFIM {g.extent}, h/J={h};  E0 = {E0:.6f}, gap Δ = {gap:.4f}, "
       f"spread Γ = {Gamma:.4f},  τ = {tau:.6f}")
 print(f"SR critical learning rate  η_max = 1/Γ = {eta_sr_max:.4g}  "
-      f"(SR diverges for η ≥ this; we use lr_sr below it). PII uses η = 1.")
+      f"(SR diverges for η ≥ this; PII's natural rate is η = 1).")
 
-# Each entry: a learning rate and the pii.VMC keyword arguments. SR needs a small
-# learning rate; PII uses η = 1.
-
+# Learning rates: SR's stable range is η < 1/Γ (= eta_sr_max); PII's natural rate
+# is η = 1. Both are halved below for extra Monte Carlo stability.
 lr_sr = eta_sr_max
 diag_shift_sr = 1e-4
 # PII's natural learning rate is η = 1: the update ξ = Q⁻¹(½∇E) already *is* the
 # (Galerkin-projected) inverse-iteration step (paper Eq. 5), so η=1 applies it
 # exactly.
 lr_pii = 1.0
-diag_shift_pii = 1e-3
+diag_shift_pii = 1e-4
 
 # For stability, we will halve both optimal learning rates.
-lr_pii /= 2.0
 lr_sr /= 2.0
+lr_pii /= 2.0
+# with SPRING, the learning rate must typically be reduced (also the case for SR-SPRING)
+lr_spring_pii = lr_pii / 4.0 
 
 runs = {
-    "SR": (lr_sr, dict(diag_shift=diag_shift_sr, pii=False, use_ntk=False)),
-    "minSR": (lr_sr, dict(diag_shift=diag_shift_sr, pii=False, use_ntk=True)),
-    "PII dense": (lr_pii, dict(diag_shift=diag_shift_sr, pii=True, tau=tau, use_ntk=False)),
-    "minPII": (
-        lr_pii,
-        dict(diag_shift=diag_shift_sr, pii=True, tau=tau, use_ntk=True, on_the_fly=False),
-    ),
-    "PII on-the-fly": (
-        lr_pii,
-        dict(diag_shift=diag_shift_sr, pii=True, tau=tau, use_ntk=True, on_the_fly=True),
-    ),
-    "PII-SPRING": (
-        lr_pii,
-        dict(
-            diag_shift=diag_shift_sr,
-            pii=True,
-            tau=tau,
-            use_ntk=True,
-            on_the_fly=True,
-            momentum=0.0,
-        ),
-    ),
     # FullSumState (exact, no Monte Carlo noise) -- dense PII only.
     "SR FullSum": (
         lr_sr,
         dict(diag_shift=diag_shift_sr, pii=False, use_ntk=False, fullsum=True),
     ),
+    "SR": (lr_sr, dict(diag_shift=diag_shift_sr, pii=False, use_ntk=False)),
+    "minSR": (lr_sr, dict(diag_shift=diag_shift_sr, pii=False, use_ntk=True)),
+    # FullSumState (exact, no Monte Carlo noise) -- dense PII only.
     "PII FullSum": (
         lr_pii,
-        dict(diag_shift=diag_shift_sr, pii=True, tau=tau, use_ntk=False, fullsum=True),
+        dict(diag_shift=diag_shift_pii, pii=True, tau=tau, use_ntk=False, fullsum=True),
+    ),
+    "PII": (lr_pii, dict(diag_shift=diag_shift_pii, pii=True, tau=tau, use_ntk=False)),
+    "minPII": (
+        lr_pii,
+        dict(diag_shift=diag_shift_pii, pii=True, tau=tau, use_ntk=True, on_the_fly=False),
+    ),
+    "minPII on-the-fly": (
+        lr_pii,
+        dict(diag_shift=diag_shift_pii, pii=True, tau=tau, use_ntk=True, on_the_fly=True),
+    ),
+    # Combinations with SPRING
+    "PII-SPRING": (
+        lr_spring_pii,
+        dict(
+            diag_shift=diag_shift_pii,
+            pii=True,
+            tau=tau,
+            use_ntk=False,
+            momentum=0.8,
+        ),
+    ),
+    "minPII-SPRING": (
+        lr_spring_pii,
+        dict(
+            diag_shift=diag_shift_pii,
+            pii=True,
+            tau=tau,
+            use_ntk=True,
+            on_the_fly=True,
+            momentum=0.8,
+        ),
     ),
 }
 
@@ -137,41 +157,52 @@ for label, (lr, kw) in runs.items():
     # (mode="real" would truncate the phase and is only for real-output ansätze.)
     driver = pii.VMC(H, opt, variational_state=vstate, mode="complex", **kw)
     log = nk.logging.RuntimeLog()
-    driver.run(n_iter=N_ITER, out=log, show_progress=False)
+    # Time each iteration: cumulative wall time after every step. The first step
+    # includes one-time JIT compilation, which is part of the total wall time.
+    walltime = []
+    t0 = time.perf_counter()
+    for _ in range(N_ITER):
+        driver.run(n_iter=1, out=log, show_progress=False)
+        jax.block_until_ready(driver.state.parameters)
+        walltime.append(time.perf_counter() - t0)
     energies = np.asarray(log.data["Energy"].Mean).real
-    results[label] = energies
-    print(f"  {label:16s} final E = {energies[-1]:.5f}  rel.err = {abs((energies[-1] - E0) / E0):.2e}")
+    results[label] = (energies, np.asarray(walltime))
+    print(f"  {label:18s} final E = {energies[-1]:.5f}  rel.err = "
+          f"{abs((energies[-1] - E0) / E0):.2e}  ({walltime[-1]:.2f}s)")
 
-# Plot the best-so-far (running-minimum) relative error: this removes Monte Carlo
-# jitter so the convergence *speed* of each method is legible. Every entry in
-# `runs` is plotted automatically, so any extra experiment added above shows up
-# here too. Convention: SR family dashed, PII family solid; exact (FullSum) runs
-# get markers; the coinciding PII MC variants (dense/minPII/on-the-fly) overlap.
+# Plot the relative energy error for every entry in `runs` (so any experiment added
+# above is plotted automatically), against two x-axes: iteration count and cumulative
+# wall time. Convention: SR family dashed, PII family solid; exact (FullSum) runs get
+# markers; the coinciding PII MC variants overlap.
 _palette = plt.cm.tab10.colors
 colors = {label: _palette[i % len(_palette)] for i, label in enumerate(results)}
 
-plt.figure(figsize=(8, 5))
-for label, energies in results.items():
-    kw = runs[label][1]
-    is_pii = kw.get("pii", False)
-    is_fullsum = kw.get("fullsum", False)
-    rel = np.abs((energies - E0) / E0)
-    # rel = np.minimum.accumulate(np.abs((energies - E0) / E0))  # best so far
-    plt.semilogy(
-        rel,
-        label=label,
-        color=colors[label],
-        ls="-" if is_pii else "--",
-        lw=2.2 if is_fullsum else 1.6,
-        marker="o" if is_fullsum else None,
-        markevery=max(N_ITER // 12, 1),
-        ms=4,
-        alpha=0.9,
-    )
-plt.xlabel("iteration")
-plt.ylabel(r"best relative error $|(E - E_0)/E_0|$")
-plt.title(f"SR vs PII — TFIM N={hi.size} spins, h/J={h}  (Δ={gap:.3f})")
-plt.legend(fontsize=8, ncol=2)
-plt.tight_layout()
-plt.savefig(HERE / "compare_sr_pii_tfim.png", dpi=150)
-print(f"saved {HERE / 'compare_sr_pii_tfim.png'}")
+
+def plot_convergence(x_of, xlabel, fname):
+    plt.figure(figsize=(8, 5))
+    for label, (energies, walltime) in results.items():
+        kw = runs[label][1]
+        is_pii = kw.get("pii", False)
+        is_fullsum = kw.get("fullsum", False)
+        rel = np.abs((energies - E0) / E0)
+        # rel = np.minimum.accumulate(rel)  # uncomment for best-so-far error
+        rel = np.maximum(rel, 1e-16)  # floor: rel==0 is −∞ on a log axis (would vanish)
+        plt.semilogy(
+            x_of(energies, walltime), rel,
+            label=label, color=colors[label],
+            ls="-" if is_pii else "--",
+            lw=2.2 if is_fullsum else 1.6,
+            marker="o" if is_fullsum else None,
+            markevery=max(len(rel) // 12, 1), ms=4, alpha=0.9,
+        )
+    plt.xlabel(xlabel)
+    plt.ylabel(r"relative error $|(E - E_0)/E_0|$")
+    plt.title(f"SR vs PII — TFIM N={hi.size} spins, h/J={h}  (Δ={gap:.3f})")
+    plt.legend(fontsize=8, ncol=2)
+    plt.tight_layout()
+    plt.savefig(HERE / fname, dpi=150)
+    print(f"saved {HERE / fname}")
+
+
+plot_convergence(lambda e, t: np.arange(len(e)), "iteration", "compare_sr_pii_tfim.png")
+plot_convergence(lambda e, t: t, "wall time (s)", "compare_sr_pii_tfim_walltime.png")

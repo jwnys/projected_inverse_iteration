@@ -71,19 +71,29 @@ peak memory to `chunk · n_conn` passes (never a `[M, n_conn, P]` tensor).
 `FullSumState` (exact enumeration, no Monte Carlo noise) is supported on the
 dense PII path.
 
+### Bundled model
+
+`pii.models.RBMRealParams` is an RBM with a **complex log-amplitude but real
+parameters** — each complex weight is stored as a real/imaginary pair and
+combined internally — matching the paper's "real parameters, complex output"
+convention (`log Ψ = f + i g`). Use it with `mode="complex"` (or `mode=None`,
+which auto-detects).
+
 ## Examples
 
 ```bash
 python pii/examples/diag_hamiltonian_fig1.py   # paper Fig. 1 toy benchmark
-python pii/examples/compare_sr_pii_tfim.py     # SR vs PII on a 4x4 TFIM
+python pii/examples/compare_sr_pii_tfim.py     # SR vs PII on a small TFIM chain
 ```
 
 - `diag_hamiltonian_fig1.py` reproduces Figure 1: the toy Hamiltonian
   `Ĥ = diag(1, 10, 0)` (dim-3 Hilbert space, exact `LogStateVector` ansatz),
   showing PII converging almost immediately while SR oscillates slowly.
-- `compare_sr_pii_tfim.py` compares SR and every PII variant on a 2D
-  transverse-field Ising model in the small-gap (ordered) regime, where PII
-  converges much faster than SR.
+- `compare_sr_pii_tfim.py` compares SR and every PII variant on a small,
+  exactly-solvable 1D transverse-field Ising chain, all starting from identical
+  parameters. PII reaches ~machine precision while SR is limited by the
+  Monte Carlo sampling-noise floor; the `FullSumState` runs confirm both are
+  exact in the noise-free limit.
 
 ## Tests
 
@@ -95,7 +105,8 @@ PII_TEST_DEVICES=2 python -m pytest test/       # multi-device / sharding
 The suite checks: exact reproduction of NetKet `VMC_SR` (`pii=False`), mutual
 agreement of the dense / minPII / on-the-fly PII paths, convergence of every
 variant (incl. PII-SPRING) and `FullSumState`, the local-energy derivative
-against finite differences, and device-count-invariant results under sharding.
+against finite differences, chunk-size invariance, device-count-invariant
+results under sharding, and the SR↔PII factor-of-2 / `η=1` / SPRING conventions.
 
 ## Layout
 
@@ -114,3 +125,11 @@ pii/
     compare_sr_pii_tfim.py
 test/
 ```
+
+## Citing
+
+If you use this package, please cite:
+
+> H. Zhang, V. Armegioiu, J. Carrasquilla, S. Mishra, J. Müller, J. Nys,
+> M. Zeinhofer. *Projected Inverse Iteration: An Eigenvalue Approach to
+> Ground-State Computation with Neural Quantum States.*
