@@ -45,7 +45,6 @@ driver = pii.VMC(
     diag_shift=1e-2,                # Tikhonov regularization λ
     pii=True,
     tau=1.1 * E0,                   # shift τ (mild "undershoot": α ≥ 1)
-    mode="real",                    # 'real' for sign-real wavefunctions, else 'complex'
 )
 driver.run(n_iter=100)
 ```
