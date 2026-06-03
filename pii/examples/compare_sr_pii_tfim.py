@@ -157,18 +157,24 @@ for label, (lr, kw) in runs.items():
     # (mode="real" would truncate the phase and is only for real-output ansätze.)
     driver = pii.VMC(H, opt, variational_state=vstate, mode="complex", **kw)
     log = nk.logging.RuntimeLog()
-    # Time each iteration: cumulative wall time after every step. The first step
-    # includes one-time JIT compilation, which is part of the total wall time.
-    walltime = []
+    # warm up to trigger JIT compilation (not timed, not logged), then reset to the
+    # shared start so the comparison still begins from identical parameters.
+    driver.run(n_iter=1, show_progress=False)
+    driver.state.parameters = init_params
+    jax.block_until_ready(driver.state.parameters)
+
     t0 = time.perf_counter()
-    for _ in range(N_ITER):
-        driver.run(n_iter=1, out=log, show_progress=False)
-        jax.block_until_ready(driver.state.parameters)
-        walltime.append(time.perf_counter() - t0)
-    energies = np.asarray(log.data["Energy"].Mean).real
-    results[label] = (energies, np.asarray(walltime))
+    driver.run(n_iter=N_ITER, out=log, show_progress=False)
+    jax.block_until_ready(driver.state.parameters)
+    total = time.perf_counter() - t0
+
+    energies = np.asarray(log.data["Energy"].Mean).real  # N_ITER points
+    # per-iteration wall time from the single accurate total (steady state ⇒ ~uniform
+    # per step); avoids the per-step block_until_ready sync overhead.
+    walltime = np.linspace(total / N_ITER, total, N_ITER)
+    results[label] = (energies, walltime)
     print(f"  {label:18s} final E = {energies[-1]:.5f}  rel.err = "
-          f"{abs((energies[-1] - E0) / E0):.2e}  ({walltime[-1]:.2f}s)")
+          f"{abs((energies[-1] - E0) / E0):.2e}  ({total:.2f}s)")
 
 # Plot the relative energy error for every entry in `runs` (so any experiment added
 # above is plotted automatically), against two x-axes: iteration count and cumulative

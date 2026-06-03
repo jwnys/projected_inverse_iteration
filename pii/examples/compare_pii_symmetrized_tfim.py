@@ -11,7 +11,7 @@ changes between the two PII variants is the *linear solver*:
   ``ξ = (QᴴQ + λ·I)⁻¹ Qᴴ (½∇E)`` with the *unregularized* ``Q = H − τS`` — i.e.
   the regularized pseudo-inverse of ``Q``. This requires the driver ``diag_shift=0``
   (the regularization is carried by the solver's ``diag_shift``). See
-  :func:`pii.symmetrized_solver`. Note that ``diag_shift_pii_symm`` has **energy²
+  :func:`pii.penrose_symmetrized_solver`. Note that ``diag_shift_pii_symm`` has **energy²
   units** and — because forming ``QᴴQ`` squares the (large) condition number of the
   rank-deficient ``Q`` — empirically needs to be ``O(0.1–1)`` here, *far* larger than
   ``diag_shift_pii`` (the energy-unit heuristic gives only the dimension, not the
@@ -79,10 +79,9 @@ print(f"PII η = {lr_pii};  diag_shift (unsym) = {diag_shift_pii};  "
 # The symmetrized solver is bound once (partial on the shift) and shared by the MC
 # and FullSum runs. NOTE: the driver diag_shift must be 0 for these runs (the
 # regularization is carried by the solver's diag_shift here).
-solver = None
-# since we symmetrize, we can use the Cholesky solver
-solver = nk.optimizer.solver.cholesky
-sym_solver = partial(pii.symmetrized_solver, diag_shift=diag_shift_pii_symm, solver=solver)
+# note: the default solver is now Cholesky!
+sym_solver = partial(pii.penrose_symmetrized_solver, diag_shift=diag_shift_pii_symm)
+# sym_solver = partial(pii.naive_symmetrized_solver, diag_shift=diag_shift_pii)
 
 runs = {
     "PII symmetrized FullSum": (
@@ -133,16 +132,24 @@ for label, (lr, kw) in runs.items():
     # RBMRealParams has a complex log-amplitude (real params), so use mode="complex".
     driver = pii.VMC(H, opt, variational_state=vstate, **kw)
     log = nk.logging.RuntimeLog()
-    walltime = []
+    # warm up to trigger JIT compilation (not timed, not logged), then reset to the
+    # shared start so the comparison still begins from identical parameters.
+    driver.run(n_iter=1, show_progress=False)
+    driver.state.parameters = init_params
+    jax.block_until_ready(driver.state.parameters)
+
     t0 = time.perf_counter()
-    for _ in range(N_ITER):
-        driver.run(n_iter=1, out=log, show_progress=False)
-        jax.block_until_ready(driver.state.parameters)
-        walltime.append(time.perf_counter() - t0)
-    energies = np.asarray(log.data["Energy"].Mean).real
-    results[label] = (energies, np.asarray(walltime))
+    driver.run(n_iter=N_ITER, out=log, show_progress=True)
+    jax.block_until_ready(driver.state.parameters)
+    total = time.perf_counter() - t0
+
+    energies = np.asarray(log.data["Energy"].Mean).real  # N_ITER points
+    # per-iteration wall time from the single accurate total (steady state ⇒ ~uniform
+    # per step); avoids the per-step block_until_ready sync overhead.
+    walltime = np.linspace(total / N_ITER, total, N_ITER)
+    results[label] = (energies, walltime)
     print(f"  {label:26s} final E = {energies[-1]:.5f}  rel.err = "
-          f"{abs((energies[-1] - E0) / E0):.2e}  ({walltime[-1]:.2f}s)")
+          f"{abs((energies[-1] - E0) / E0):.2e}  ({total:.2f}s)")
 
 # Plot the relative energy error for every entry in `runs`. Convention: unsymmetrized
 # dashed, symmetrized solid; exact (FullSum) runs get markers.

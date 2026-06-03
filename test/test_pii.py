@@ -8,7 +8,7 @@ import optax
 import pytest
 
 import pii
-from pii import symmetrized_solver
+from pii import penrose_symmetrized_solver
 
 from .common import tfim, make_mcstate, make_fullsum, rel_error
 
@@ -112,21 +112,21 @@ def test_tau_schedule():
 # --- Symmetrized PII (regularized pseudo-inverse solver) ---------------------
 
 
-def test_symmetrized_solver_math():
-    """symmetrized_solver returns (QᵀQ+reg·I)⁻¹Qᵀb, → Q⁻¹b as reg→0."""
+def test_penrose_symmetrized_solver_math():
+    """penrose_symmetrized_solver returns (QᵀQ+reg·I)⁻¹Qᵀb, → Q⁻¹b as reg→0."""
     rng = np.random.default_rng(0)
     n = 20
     Q = np.eye(n) + 0.3 * rng.standard_normal((n, n))  # well-conditioned
     b = rng.standard_normal(n)
 
     reg = 1e-3
-    x, info = symmetrized_solver(Q, b, diag_shift=reg)
+    x, info = penrose_symmetrized_solver(Q, b, diag_shift=reg)
     expected = np.linalg.solve(Q.T @ Q + reg * np.eye(n), Q.T @ b)
     assert info is None
     np.testing.assert_allclose(np.asarray(x), expected, rtol=1e-6, atol=1e-8)
 
     # reg → 0 reproduces the plain solve Q⁻¹b (Q well-conditioned).
-    x0, _ = symmetrized_solver(Q, b, diag_shift=1e-10)
+    x0, _ = penrose_symmetrized_solver(Q, b, diag_shift=1e-10)
     np.testing.assert_allclose(np.asarray(x0), np.linalg.solve(Q, b), rtol=1e-5, atol=1e-6)
 
     # an inner `solver` (A, b) -> (x, info) is honored for the SPD normal system.
@@ -136,7 +136,7 @@ def test_symmetrized_solver_math():
         seen["called"] = True
         return jax.scipy.linalg.solve(A, rhs, assume_a="sym"), {"k": 1}
 
-    xs, infos = symmetrized_solver(Q, b, diag_shift=reg, solver=my_solver)
+    xs, infos = penrose_symmetrized_solver(Q, b, diag_shift=reg, solver=my_solver)
     assert seen.get("called") and infos == {"k": 1}
     np.testing.assert_allclose(np.asarray(xs), expected, rtol=1e-6, atol=1e-8)
 
@@ -148,7 +148,7 @@ def test_pii_symmetrized_fullsum_converges():
     d = pii.VMC(
         H, optax.sgd(1.0), variational_state=vs, diag_shift=0.0, pii=True,
         tau=1.2 * E0, mode="real",
-        linear_solver=partial(symmetrized_solver, diag_shift=1e-3),
+        linear_solver=partial(penrose_symmetrized_solver, diag_shift=1e-3),
     )
     d.run(n_iter=50, show_progress=False)
     assert rel_error(vs, H, E0) < 1e-3
@@ -161,13 +161,13 @@ def test_pii_symmetrized_converges():
     d = pii.VMC(
         H, optax.sgd(1.0), variational_state=vs, diag_shift=0.0, pii=True,
         tau=1.2 * E0, mode="real",
-        linear_solver=partial(symmetrized_solver, diag_shift=1e-3),
+        linear_solver=partial(penrose_symmetrized_solver, diag_shift=1e-3),
     )
     d.run(n_iter=50, show_progress=False)
     assert rel_error(vs, H, E0) < 5e-3
 
 
-def test_symmetrized_solver_pseudoinverse_rank_deficient():
+def test_penrose_symmetrized_solver_pseudoinverse_rank_deficient():
     """On a *singular* Q the solver gives the min-norm least-squares (pinv) solution.
 
     For a rank-deficient Q (the common case with over-parametrized / gauge-redundant
@@ -185,11 +185,11 @@ def test_symmetrized_solver_pseudoinverse_rank_deficient():
     Q = (U * s) @ V.T
     b = rng.standard_normal(n)
 
-    x, _ = symmetrized_solver(Q, b, diag_shift=1e-10)
+    x, _ = penrose_symmetrized_solver(Q, b, diag_shift=1e-10)
     np.testing.assert_allclose(np.asarray(x), np.linalg.pinv(Q) @ b, rtol=1e-4, atol=1e-6)
 
 
-def test_symmetrized_solver_complex_hermitian():
+def test_penrose_symmetrized_solver_complex_hermitian():
     """For a genuinely complex Q the solver must use the Hermitian transpose Qᴴ.
 
     The conjugation only matters for a *singular* complex Q (for invertible Q both
@@ -206,7 +206,7 @@ def test_symmetrized_solver_complex_hermitian():
     Q = U @ np.diag(s).astype(complex) @ V.conj().T  # rank-deficient complex
     b = rng.standard_normal(n) + 1j * rng.standard_normal(n)
 
-    x, _ = symmetrized_solver(Q, b, diag_shift=1e-10)
+    x, _ = penrose_symmetrized_solver(Q, b, diag_shift=1e-10)
     np.testing.assert_allclose(np.asarray(x), np.linalg.pinv(Q) @ b, rtol=1e-4, atol=1e-6)
     # the conjugate transpose matters: plain Qᵀ gives a materially different vector.
     x_wrong = np.linalg.solve(Q.T @ Q + 1e-10 * np.eye(n), Q.T @ b)
