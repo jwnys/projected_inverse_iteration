@@ -12,5 +12,6 @@ Ground-State Computation with Neural Quantum States".
 
 from pii.driver import VMC
 from pii import models  # exposes pii.models.RBMRealParams
+from pii._ngd.solvers import symmetrized_solver
 
-__all__ = ["VMC", "models"]
+__all__ = ["VMC", "models", "symmetrized_solver"]
