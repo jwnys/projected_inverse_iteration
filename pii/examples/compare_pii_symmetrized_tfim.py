@@ -80,6 +80,7 @@ print(f"PII η = {lr_pii};  diag_shift (unsym) = {diag_shift_pii};  "
 # and FullSum runs. NOTE: the driver diag_shift must be 0 for these runs (the
 # regularization is carried by the solver's diag_shift here).
 solver = None
+# since we symmetrize, we can use the Cholesky solver
 solver = nk.optimizer.solver.cholesky
 sym_solver = partial(pii.symmetrized_solver, diag_shift=diag_shift_pii_symm, solver=solver)
 
@@ -92,6 +93,10 @@ runs = {
     "PII symmetrized": (
         lr_pii,
         dict(diag_shift=0.0, pii=True, tau=tau, use_ntk=False, linear_solver=sym_solver),
+    ),
+    "minPII symmetrized": (
+        lr_pii,
+        dict(diag_shift=0.0, pii=True, tau=tau, use_ntk=True, linear_solver=sym_solver),
     ),
     "PII FullSum": (
         lr_pii,

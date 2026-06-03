@@ -137,7 +137,7 @@ runs = {
 _init = normal(stddev=0.3)
 model = pii.models.RBMRealParams(
     alpha=1, param_dtype=jnp.float64,
-    kernel_init=_init, hidden_bias_init=_init, visible_bias_init=_init,
+    kernel_init=_init, #hidden_bias_init=_init, visible_bias_init=_init,
 )
 init_params = nk.vqs.FullSumState(hi, model, seed=0).parameters
 
