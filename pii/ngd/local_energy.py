@@ -35,10 +35,22 @@ configurations internally, the per-sample Jacobian of ``f_A`` is a single ``[P]`
 (or ``[2, P]``) vector with no ``n_conn`` axis: chunking over samples therefore
 bounds peak memory to ``chunk_size · n_conn`` forward/backward passes, never a
 ``[M, n_conn, P]`` tensor.
+
+**Stability for JIT (why ``HashablePartial``).** ``f_A`` is passed as a *static* argument to
+the jitted ``_pii_common`` kernel (and to ``nkjax.jacobian``).  If it were a fresh ``def``
+closure each step, every step would hash differently → a jit cache miss → a full
+**recompilation every iteration** (we measured ~170 ms of wasted compile per step).  NetKet
+avoids exactly this by keeping its ``local_kernel`` a stable/module-level function and, where a
+closure is unavoidable, wrapping it in :class:`netket.jax.HashablePartial` (which compares by
+``func.__code__`` + bound args).  We mirror that: ``f_EL``/``f_A`` are ``HashablePartial`` of the
+**module-level** ``_f_EL_impl``/``_f_A_impl``, binding only the stable, hashable ``apply_fun``
+(itself a ``HashablePartial`` in NetKet), ``kernel`` and operator ``args``.  Two freshly-built
+``f_A`` then hash **equal**, so the kernel is compiled **once** and reused.
 """
 
 import jax
 
+from netket import jax as nkjax
 from netket.vqs import MCState
 from netket.vqs.mc import get_local_kernel, get_local_kernel_arguments
 from netket.vqs.mc.kernels import local_value_kernel_jax
@@ -52,6 +64,10 @@ def _kernel_and_args(vstate, operator):
     returns sample-independent ``args``. :class:`~netket.vqs.FullSumState` does not
     register kernels, so we fall back to the standard discrete-jax kernel with the
     operator's jax form as the (sample-independent) argument.
+
+    Both the returned ``kernel`` (a module-level function, or a ``HashablePartial`` from
+    NetKet's chunked dispatch) and ``args`` (the jax operator) are hashable and value-stable,
+    so they can be bound into a ``HashablePartial`` (see :func:`make_local_energy_funs`).
     """
     if isinstance(vstate, MCState):
         kernel = get_local_kernel(vstate, operator)
@@ -60,6 +76,17 @@ def _kernel_and_args(vstate, operator):
 
     op = operator.to_jax_operator() if hasattr(operator, "to_jax_operator") else operator
     return local_value_kernel_jax, op
+
+
+def _f_EL_impl(apply_fun, kernel, args, variables, samples):
+    """Local energies ``E_L``. Module-level so a ``HashablePartial`` of it is stable."""
+    return kernel(apply_fun, variables, samples, args)
+
+
+def _f_A_impl(apply_fun, kernel, args, variables, samples):
+    """The PII ``A``-function ``E_L + sg(E_L)·logψ``. Module-level for ``HashablePartial`` stability."""
+    eloc = kernel(apply_fun, variables, samples, args)
+    return eloc + jax.lax.stop_gradient(eloc) * apply_fun(variables, samples)
 
 
 def make_local_energy_funs(vstate, operator):
@@ -76,15 +103,14 @@ def make_local_energy_funs(vstate, operator):
     - ``f_EL`` returns the local energies :math:`E_L`.
     - ``f_A`` returns :math:`E_L + \mathrm{sg}(E_L)\,\log\psi`, whose Jacobian
       w.r.t. the parameters is the PII matrix ``A`` (Eq. 28).
+
+    Both are :class:`netket.jax.HashablePartial` of module-level impls so that, even though they
+    are rebuilt every optimization step, they compare **equal** across steps and the jitted PII
+    kernel is compiled once (see the module docstring) — mirroring how NetKet handles its
+    ``local_kernel``.
     """
-    apply_fun = vstate._apply_fun
+    apply_fun = vstate._apply_fun  # already a HashablePartial in NetKet
     kernel, args = _kernel_and_args(vstate, operator)
-
-    def f_EL(variables, samples):
-        return kernel(apply_fun, variables, samples, args)
-
-    def f_A(variables, samples):
-        eloc = f_EL(variables, samples)
-        return eloc + jax.lax.stop_gradient(eloc) * apply_fun(variables, samples)
-
+    f_EL = nkjax.HashablePartial(_f_EL_impl, apply_fun, kernel, args)
+    f_A = nkjax.HashablePartial(_f_A_impl, apply_fun, kernel, args)
     return f_EL, f_A
