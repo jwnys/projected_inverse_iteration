@@ -21,7 +21,7 @@ linear-ansatz figure. The qualitative SR-vs-PII contrast is reproduced exactly.
 
 Run with::
 
-    conda activate pii && python pii/examples/diag_hamiltonian_fig1.py
+    python examples/diag_hamiltonian_fig1.py
 """
 
 from pathlib import Path
@@ -45,12 +45,12 @@ H = nk.operator.LocalOperator(hi, operators=[np.diag([1.0, 10.0, 0.0])], acting_
 
 # LogStateVector: every basis amplitude is a free (real) parameter -> exact ansatz.
 # Both drivers start from the same state (same seed).
-sr = pii.VMC(
+sr = pii.driver.VMC_PII(
     H, optax.sgd(0.1),
     variational_state=nk.vqs.FullSumState(hi, nk.models.LogStateVector(hi, param_dtype=float), seed=SEED),
     diag_shift=0.0, pii=False, mode="real",
 )
-pii_drv = pii.VMC(
+pii_drv = pii.driver.VMC_PII(
     H, optax.sgd(1.0),
     variational_state=nk.vqs.FullSumState(hi, nk.models.LogStateVector(hi, param_dtype=float), seed=SEED),
     diag_shift=1e-8, pii=True, tau=1e-8, mode="real",

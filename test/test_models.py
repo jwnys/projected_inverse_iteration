@@ -31,7 +31,7 @@ def test_pii_converges_with_rbm_real_params():
         nk.sampler.MetropolisLocal(hi, n_chains=16),
         pii.models.RBMRealParams(alpha=2), n_samples=2048, seed=0,
     )
-    d = pii.VMC(H, optax.sgd(1.0), variational_state=vs, diag_shift=0.1, pii=True,
+    d = pii.driver.VMC_PII(H, optax.sgd(1.0), variational_state=vs, diag_shift=0.1, pii=True,
                 tau=1.2 * E0)
     assert d.mode == "complex"  # auto-detected from the complex output
     d.run(n_iter=40, show_progress=False)
@@ -57,7 +57,7 @@ def test_pii_converges_with_logstatevector_real_params():
     """PII converges with the exact complex-output vector ansatz (FullSum)."""
     _, hi, H, E0 = tfim()
     vs = nk.vqs.FullSumState(hi, pii.models.LogStateVectorRealParams(hi), seed=0)
-    d = pii.VMC(H, optax.sgd(1.0), variational_state=vs, diag_shift=1e-8, pii=True,
+    d = pii.driver.VMC_PII(H, optax.sgd(1.0), variational_state=vs, diag_shift=1e-8, pii=True,
                 tau=1.2 * E0, mode="complex")
     d.run(n_iter=50, show_progress=False)
     assert rel_error(vs, H, E0) < 1e-4

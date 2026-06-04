@@ -18,7 +18,9 @@ authors = [
     { name = "Marius Zeinhofer" },
 ]
 dependencies = [
-    "netket",
+    # PII tracks the latest NetKet (installed from GitHub, per NetKet's docs:
+    # https://github.com/netket/netket).
+    "netket @ git+https://github.com/netket/netket.git",
     "jax",
     "einops",
 ]

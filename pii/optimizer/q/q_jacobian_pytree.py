@@ -36,7 +36,7 @@ class QJacobianPyTreeT(LinearOperator):
     """Optional per-parameter rescaling (unused by default; kept for API parity)."""
 
     mode: str = struct.field(pytree_node=False, default=Uninitialized)
-    """Differentiation mode: ``'real'`` or ``'complex'``."""
+    """Differentiation mode: ``'real'``, ``'complex'`` or ``'holomorphic'``."""
 
     _params_structure: PyTree = struct.field(pytree_node=False, default=Uninitialized)
     _in_solve: bool = struct.field(pytree_node=False, default=False)

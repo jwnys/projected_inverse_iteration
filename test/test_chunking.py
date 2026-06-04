@@ -13,8 +13,8 @@ import jax.flatten_util as fu
 import numpy as np
 import pytest
 
-from pii._ngd.common import _pii_common
-from pii._ngd.pii_onthefly import pii_onthefly
+from pii.ngd.common import _pii_common
+from pii.ngd.pii_onthefly import pii_onthefly
 
 from .common import fixed_inputs, gen_solver
 

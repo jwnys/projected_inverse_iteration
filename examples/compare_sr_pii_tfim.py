@@ -22,7 +22,7 @@ SR-vs-PII contrast rather than the large-system, gap-closing regime of the paper
 
 Run with::
 
-    conda activate pii && python pii/examples/compare_sr_pii_tfim.py
+    python examples/compare_sr_pii_tfim.py
 """
 
 import time

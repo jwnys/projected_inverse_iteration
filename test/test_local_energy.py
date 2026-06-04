@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from pii._ngd.local_energy import make_local_energy_funs
+from pii.ngd.local_energy import make_local_energy_funs
 
 from .common import tfim, make_fullsum
 

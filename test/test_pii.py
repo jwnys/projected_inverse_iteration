@@ -3,12 +3,13 @@
 from functools import partial
 
 import jax
+import jax.numpy as jnp
 import numpy as np
 import optax
 import pytest
 
 import pii
-from pii import penrose_symmetrized_solver
+from pii.optimizer.solver import penrose_symmetrized_solver
 
 from .common import tfim, make_mcstate, make_fullsum, rel_error
 
@@ -16,7 +17,7 @@ from .common import tfim, make_mcstate, make_fullsum, rel_error
 def _one_step_dp(H, hi, **kw):
     """Return the (flattened) parameter update of the first PII step."""
     vs = make_mcstate(hi, seed=0)
-    d = pii.VMC(H, optax.sgd(1.0), variational_state=vs, **kw)
+    d = pii.driver.VMC_PII(H, optax.sgd(1.0), variational_state=vs, **kw)
     d.run(n_iter=1, show_progress=False)
     return jax.flatten_util.ravel_pytree(d._dp)[0]
 
@@ -55,7 +56,7 @@ def test_onthefly_chunking_is_exact():
 def test_pii_converges(kw):
     _, hi, H, E0 = tfim()
     vs = make_mcstate(hi, seed=0)
-    d = pii.VMC(
+    d = pii.driver.VMC_PII(
         H, optax.sgd(1.0), variational_state=vs, diag_shift=0.1, pii=True,
         tau=1.2 * E0, mode="real", **kw,
     )
@@ -66,7 +67,7 @@ def test_pii_converges(kw):
 def test_pii_fullsum_dense_converges():
     _, hi, H, E0 = tfim()
     vs = make_fullsum(hi, seed=0)
-    d = pii.VMC(
+    d = pii.driver.VMC_PII(
         H, optax.sgd(1.0), variational_state=vs, diag_shift=0.1, pii=True,
         tau=1.2 * E0, mode="real",
     )
@@ -78,7 +79,7 @@ def test_tau_required_for_pii():
     _, hi, H, _ = tfim()
     vs = make_mcstate(hi, seed=0)
     with pytest.raises(ValueError):
-        pii.VMC(H, optax.sgd(1.0), variational_state=vs, diag_shift=0.1, pii=True)
+        pii.driver.VMC_PII(H, optax.sgd(1.0), variational_state=vs, diag_shift=0.1, pii=True)
 
 
 def test_mode_real_rejects_complex_params():
@@ -91,9 +92,9 @@ def test_mode_real_rejects_complex_params():
         nk.models.RBM(alpha=2, param_dtype=complex), n_samples=512, seed=0,
     )
     with pytest.raises(ValueError, match="mode='real'"):
-        pii.VMC(H, optax.sgd(1.0), variational_state=vs, diag_shift=0.1, mode="real")
+        pii.driver.VMC_PII(H, optax.sgd(1.0), variational_state=vs, diag_shift=0.1, mode="real")
     # complex mode is fine with complex params
-    pii.VMC(H, optax.sgd(1.0), variational_state=vs, diag_shift=0.1, pii=True,
+    pii.driver.VMC_PII(H, optax.sgd(1.0), variational_state=vs, diag_shift=0.1, pii=True,
             tau=1.2 * (-8.0), mode="complex")
 
 
@@ -101,7 +102,7 @@ def test_tau_schedule():
     """tau can be a schedule Callable[[int], float]."""
     _, hi, H, E0 = tfim()
     vs = make_mcstate(hi, seed=0)
-    d = pii.VMC(
+    d = pii.driver.VMC_PII(
         H, optax.sgd(1.0), variational_state=vs, diag_shift=0.1, pii=True,
         tau=lambda step: 1.2 * E0, mode="real",
     )
@@ -120,13 +121,14 @@ def test_penrose_symmetrized_solver_math():
     b = rng.standard_normal(n)
 
     reg = 1e-3
-    x, info = penrose_symmetrized_solver(Q, b, diag_shift=reg)
+    # solvers follow NetKet's contract: A is a jax array (or a Q operator), never numpy.
+    x, info = penrose_symmetrized_solver(jnp.asarray(Q), jnp.asarray(b), diag_shift=reg)
     expected = np.linalg.solve(Q.T @ Q + reg * np.eye(n), Q.T @ b)
-    assert info is None
+    assert info is not None  # default inner solver is cholesky_with_fallback (returns an info dict)
     np.testing.assert_allclose(np.asarray(x), expected, rtol=1e-6, atol=1e-8)
 
     # reg → 0 reproduces the plain solve Q⁻¹b (Q well-conditioned).
-    x0, _ = penrose_symmetrized_solver(Q, b, diag_shift=1e-10)
+    x0, _ = penrose_symmetrized_solver(jnp.asarray(Q), jnp.asarray(b), diag_shift=1e-10)
     np.testing.assert_allclose(np.asarray(x0), np.linalg.solve(Q, b), rtol=1e-5, atol=1e-6)
 
     # an inner `solver` (A, b) -> (x, info) is honored for the SPD normal system.
@@ -136,7 +138,9 @@ def test_penrose_symmetrized_solver_math():
         seen["called"] = True
         return jax.scipy.linalg.solve(A, rhs, assume_a="sym"), {"k": 1}
 
-    xs, infos = penrose_symmetrized_solver(Q, b, diag_shift=reg, solver=my_solver)
+    xs, infos = penrose_symmetrized_solver(
+        jnp.asarray(Q), jnp.asarray(b), diag_shift=reg, solver=my_solver
+    )
     assert seen.get("called") and infos == {"k": 1}
     np.testing.assert_allclose(np.asarray(xs), expected, rtol=1e-6, atol=1e-8)
 
@@ -145,7 +149,7 @@ def test_pii_symmetrized_fullsum_converges():
     """Symmetrized PII (diag_shift=0, solver carries reg) converges in FullSum."""
     _, hi, H, E0 = tfim()
     vs = make_fullsum(hi, seed=0)
-    d = pii.VMC(
+    d = pii.driver.VMC_PII(
         H, optax.sgd(1.0), variational_state=vs, diag_shift=0.0, pii=True,
         tau=1.2 * E0, mode="real",
         linear_solver=partial(penrose_symmetrized_solver, diag_shift=1e-3),
@@ -158,7 +162,7 @@ def test_pii_symmetrized_converges():
     """Symmetrized PII converges under Monte Carlo sampling."""
     _, hi, H, E0 = tfim()
     vs = make_mcstate(hi, seed=0)
-    d = pii.VMC(
+    d = pii.driver.VMC_PII(
         H, optax.sgd(1.0), variational_state=vs, diag_shift=0.0, pii=True,
         tau=1.2 * E0, mode="real",
         linear_solver=partial(penrose_symmetrized_solver, diag_shift=1e-3),
@@ -185,7 +189,7 @@ def test_penrose_symmetrized_solver_pseudoinverse_rank_deficient():
     Q = (U * s) @ V.T
     b = rng.standard_normal(n)
 
-    x, _ = penrose_symmetrized_solver(Q, b, diag_shift=1e-10)
+    x, _ = penrose_symmetrized_solver(jnp.asarray(Q), jnp.asarray(b), diag_shift=1e-10)
     np.testing.assert_allclose(np.asarray(x), np.linalg.pinv(Q) @ b, rtol=1e-4, atol=1e-6)
 
 
@@ -206,7 +210,7 @@ def test_penrose_symmetrized_solver_complex_hermitian():
     Q = U @ np.diag(s).astype(complex) @ V.conj().T  # rank-deficient complex
     b = rng.standard_normal(n) + 1j * rng.standard_normal(n)
 
-    x, _ = penrose_symmetrized_solver(Q, b, diag_shift=1e-10)
+    x, _ = penrose_symmetrized_solver(jnp.asarray(Q), jnp.asarray(b), diag_shift=1e-10)
     np.testing.assert_allclose(np.asarray(x), np.linalg.pinv(Q) @ b, rtol=1e-4, atol=1e-6)
     # the conjugate transpose matters: plain Qᵀ gives a materially different vector.
     x_wrong = np.linalg.solve(Q.T @ Q + 1e-10 * np.eye(n), Q.T @ b)

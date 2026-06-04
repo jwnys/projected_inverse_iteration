@@ -5,7 +5,7 @@ Adapted from :func:`netket._src.ngd.srt_onthefly.srt_onthefly`.  Builds the
 ``[M, P]`` Jacobian:
 
 - ``O Oᵀ`` uses NetKet's :func:`empirical_ntk_by_jacobian` (single function = logψ);
-- ``O Aᵀ`` uses :func:`pii._ngd.pii_ntk.empirical_cross_ntk_by_jacobian` with the
+- ``O Aᵀ`` uses :func:`pii.ngd.pii_ntk.empirical_cross_ntk_by_jacobian` with the
   pair ``(logψ, f_A)``, chunked over the ``f_A`` (column) axis by
   ``chunk_size_dEloc`` so peak memory is ``chunk · n_conn`` passes — the
   local-energy-derivative memory never becomes a ``[M, n_conn, P]`` tensor.
@@ -30,7 +30,7 @@ from netket.jax._jacobian.default_mode import JacobianMode
 from netket.utils import timing
 from netket.utils.types import Array
 
-from pii._ngd.pii_ntk import empirical_cross_ntk_by_jacobian
+from pii.ngd.pii_ntk import empirical_cross_ntk_by_jacobian
 
 
 def _center_ntk(ntk, N_mc: int, mode: str):

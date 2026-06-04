@@ -1,9 +1,13 @@
-r"""``pii.VMC``: a drop-in superset of NetKet's ``VMC_SR`` driver.
+r"""``pii.driver.VMC_PII``: a drop-in superset of NetKet's ``VMC_SR`` driver.
 
 With ``pii=False`` this reproduces SR / minSR / on-the-fly SR by delegating to
 NetKet's own ``sr`` / ``srt`` / ``srt_onthefly`` kernels.  With ``pii=True`` it
 runs **Projected Inverse Iteration**, solving ``(H - τS + λI) ξ = ½∇E`` instead
 of SR's ``S ξ = ∇E``.
+
+This is the *integrated* PII driver (the analogue of ``netket.driver.VMC_SR``).  For the
+preconditioner-based route — the analogue of ``netket.driver.VMC`` + ``netket.optimizer.SR`` —
+use :class:`pii.driver.VMC` with :class:`pii.optimizer.PII`.
 """
 
 from typing import Any
@@ -12,7 +16,6 @@ from warnings import warn
 
 import jax
 import jax.numpy as jnp
-import jax.scipy as jsp
 from jax.flatten_util import ravel_pytree
 
 from netket import jax as nkjax
@@ -31,23 +34,13 @@ from netket._src.callbacks.auto_chunk_size import get_forward_operator
 from netket._src.ngd.sr_srt_common import sr, srt, get_samples_and_pdf
 from netket._src.ngd.srt_onthefly import srt_onthefly
 
-from pii._ngd.common import _pii_common
-from pii._ngd.pii_onthefly import pii_onthefly
-from pii._ngd.local_energy import make_local_energy_funs
+from pii.ngd.common import _pii_common
+from pii.ngd.pii_onthefly import pii_onthefly
+from pii.ngd.local_energy import make_local_energy_funs
+from pii.optimizer.solver import pii_default_solver
 
 
-def _pii_default_solver(A: Array, b: Array):
-    """General (non-symmetric) linear solve for the PII matrices ``Q`` / ``K``.
-
-    With Monte Carlo estimation, PII's ``Q = H - τS + λI`` is in general neither
-    symmetric nor positive semi-definite, so NetKet's default Cholesky solver is
-    inappropriate. We use the general LU-based :func:`jax.scipy.linalg.solve`
-    (``assume_a='gen'``). NetKet's defaults are kept untouched for SR/minSR.
-    """
-    return jsp.linalg.solve(A, b, assume_a="gen"), None
-
-
-class VMC(AbstractOptimizationDriver):
+class VMC_PII(AbstractOptimizationDriver):
     r"""Energy minimization via SR/minSR (``pii=False``) or Projected Inverse Iteration (``pii=True``).
 
     When ``pii=False`` the driver is mathematically identical to
@@ -160,7 +153,7 @@ class VMC(AbstractOptimizationDriver):
             chunk_size_dEloc = chunk_size_bwd
 
         if linear_solver is None:
-            linear_solver = _pii_default_solver if self._pii else cholesky_with_fallback
+            linear_solver = pii_default_solver if self._pii else cholesky_with_fallback
 
         self._ham = hamiltonian
 
@@ -417,5 +410,5 @@ class VMC(AbstractOptimizationDriver):
 
 
 @get_forward_operator.dispatch
-def get_forward_operator_VMC_PII(driver: VMC):
+def get_forward_operator_VMC_PII(driver: VMC_PII):
     return driver._ham

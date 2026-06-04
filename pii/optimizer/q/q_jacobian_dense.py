@@ -15,8 +15,8 @@ forming ``Q`` (enabling iterative solvers — GMRES on ``Q``, or CGNE/LSQR via `
 
 Built on NetKet: subclasses :class:`netket.optimizer.LinearOperator` and reuses its
 ``solve``/``__add__``/``__call__``, plus ``convert_tree_to_dense_format`` and
-``check_valid_vector_type``.  Only ``real``/``complex`` modes are supported (the modes PII
-uses); ``Q`` is real in both (NetKet realifies ``complex``).
+``check_valid_vector_type``.  Supports ``'real'``/``'complex'``/``'holomorphic'`` modes; ``Q`` is
+real in the realified ``'real'``/``'complex'`` modes and complex in ``'holomorphic'``.
 """
 
 import jax
@@ -51,7 +51,7 @@ class QJacobianDenseT(LinearOperator):
     """Optional per-column rescaling (unused by default; kept for API parity)."""
 
     mode: str = struct.field(pytree_node=False, default=Uninitialized)
-    """Differentiation mode: ``'real'`` or ``'complex'``."""
+    """Differentiation mode: ``'real'``, ``'complex'`` or ``'holomorphic'``."""
 
     _in_solve: bool = struct.field(pytree_node=False, default=False)
     """Internal: inside ``_solve`` the input vector is already in dense format."""

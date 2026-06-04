@@ -12,7 +12,7 @@ import jax
 from netket import jax as nkjax
 from netket.utils import timing
 
-from pii._ngd.local_energy import make_local_energy_funs
+from pii.ngd.local_energy import make_local_energy_funs
 
 from .q_jacobian_dense import QJacobianDenseT
 from .q_jacobian_pytree import QJacobianPyTreeT
@@ -39,7 +39,7 @@ def QJacobian_DefaultConstructor(
 
     Mirrors :func:`netket.optimizer.qgt.QGTJacobian_DefaultConstructor`, but builds **two**
     Jacobians (``O`` from ``apply_fun``, ``A`` from ``f_A``) and stores the shift ``tau``.
-    ``mode`` is restricted to ``'real'``/``'complex'`` (the PII modes).
+    ``mode`` is ``'real'``, ``'complex'`` or ``'holomorphic'`` (auto-detected if ``None``).
     """
     if mode is not None and holomorphic is not None:
         raise ValueError("Cannot specify both `mode` and `holomorphic`.")
@@ -127,7 +127,7 @@ def QJacobianDense(
         vstate: the variational state.
         hamiltonian: the Hamiltonian (defines ``f_A``).
         tau: the inverse-iteration shift ``τ`` (≈ ground-state energy).
-        mode: ``'real'`` or ``'complex'`` (auto if ``None``).
+        mode: ``'real'``, ``'complex'`` or ``'holomorphic'`` (auto-detected if ``None``).
         diag_shift: Tikhonov shift added to the diagonal of ``Q``.
         chunk_size / chunk_size_dEloc: chunking of the ``O`` / ``A`` Jacobians.
     """

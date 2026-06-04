@@ -16,21 +16,43 @@ where `H` is the Hamiltonian projected onto the variational tangent space and
 ground-state energy `E0`). Unlike SR, PII is **robust to small spectral gaps**
 and typically converges in far fewer iterations with learning rate `η = 1`.
 
+This implementation aims to stay **as close as possible to the NetKet
+architecture**, for seamless integration — the public API mirrors NetKet
+one-to-one:
+
+| PII | NetKet |
+|---|---|
+| `pii.driver.VMC` (≡ `pii.VMC`) | `netket.driver.VMC` (standard, preconditioner-based) |
+| `pii.driver.VMC_PII` | `netket.driver.VMC_SR` (integrated driver) |
+| `pii.optimizer.PII` | `netket.optimizer.SR` (gradient preconditioner) |
+| `pii.optimizer.q.QJacobian{Dense,PyTree}` | `netket.optimizer.qgt.QGTJacobian{Dense,PyTree}` |
+| `pii.optimizer.solver.*` | `netket.optimizer.solver.*` |
+
+So you can drop PII into any NetKet workflow: use `pii.optimizer.PII` as the
+`preconditioner` of a standard `VMC` driver, exactly as you would `netket.optimizer.SR`.
+
 See the paper: *"Projected Inverse Iteration: An Eigenvalue Approach to
 Ground-State Computation with Neural Quantum States"*.
 
 ## Install
 
+PII tracks the latest NetKet (installed from GitHub, per
+[NetKet's docs](https://github.com/netket/netket)):
+
 ```bash
-conda activate pii          # an env with netket already installed
-pip install -e . --no-deps
+pip install -e .          # pulls NetKet (latest, from GitHub) + jax + einops
+# or, with uv:
+uv pip install -e .
 ```
 
 ## Usage
 
-`pii.VMC` is a **drop-in superset** of NetKet's `VMC_SR` driver. With
-`pii=False` (default) it reproduces SR / minSR / on-the-fly SR *exactly*; with
-`pii=True` it runs Projected Inverse Iteration.
+There are two equivalent entry points, mirroring NetKet's two:
+
+### 1. Preconditioner + standard driver (`pii.optimizer.PII` + `pii.driver.VMC`)
+
+The NetKet-idiomatic route — `pii.optimizer.PII` is a drop-in replacement for
+`netket.optimizer.SR`:
 
 ```python
 import optax, netket as nk
@@ -38,18 +60,41 @@ import pii
 
 # ... build hamiltonian H, exact/estimated E0, and a variational state vstate ...
 
-driver = pii.VMC(
-    H,
-    optax.sgd(1.0),                 # PII uses learning rate η = 1
+gs = pii.driver.VMC(                 # ≡ pii.VMC ; same as netket.driver.VMC
+    H, optax.sgd(1.0),               # PII uses learning rate η = 1
     variational_state=vstate,
-    diag_shift=1e-2,                # Tikhonov regularization λ
-    pii=True,
-    tau=1.1 * E0,                   # shift τ (mild "undershoot": α ≥ 1)
+    preconditioner=pii.optimizer.PII(H, tau=1.1 * E0, diag_shift=1e-2),
 )
-driver.run(n_iter=100)
+gs.run(n_iter=100)
 ```
 
-### Key options
+`pii.optimizer.PII` accepts `q=` (the `Q`-matrix type — `QJacobianDense` (default) or
+`QJacobianPyTree`) and `solver=` (a linear solver from `pii.optimizer.solver`). For a
+**matrix-free** solve (no dense `Q`), use the iterative solvers — the PII analogue of
+`SR(solver=cg)` (note: `cg` is unavailable here because `Q` is non-symmetric/indefinite,
+so PII provides `gmres`/`bicgstab` instead):
+
+```python
+pii.optimizer.PII(H, tau=1.1 * E0, diag_shift=1e-2,
+                  q=pii.optimizer.q.QJacobianPyTree,
+                  solver=pii.optimizer.solver.gmres)   # matrix-free
+```
+
+### 2. Integrated driver (`pii.driver.VMC_PII`)
+
+`pii.driver.VMC_PII` is a **drop-in superset** of NetKet's `VMC_SR` (it adds the NTK /
+on-the-fly / SPRING machinery). With `pii=False` it reproduces SR / minSR / on-the-fly SR
+*exactly*; with `pii=True` it runs Projected Inverse Iteration:
+
+```python
+gs = pii.driver.VMC_PII(
+    H, optax.sgd(1.0), variational_state=vstate,
+    diag_shift=1e-2, pii=True, tau=1.1 * E0,
+)
+gs.run(n_iter=100)
+```
+
+#### Key options (`VMC_PII`)
 
 | option | meaning |
 |---|---|
@@ -59,6 +104,7 @@ driver.run(n_iter=100)
 | `use_ntk` | `True` → kernel trick (minSR / **minPII**, `2M×2M`); `False` → dense (`P×P`) |
 | `on_the_fly` | `True` → matrix-free / lazy NTK (lowest memory) |
 | `momentum` | SPRING / PII-SPRING damping (≈ 0.8) |
+| `linear_solver` | `(Q, b) -> (x, info)` solver (e.g. `pii.optimizer.solver.penrose_symmetrized_solver`) |
 | `chunk_size_bwd` | chunking of the `O` Jacobian / NTK (backward pass) |
 | `chunk_size_dEloc` | chunking of the **local-energy-derivative** (`A`) computation; defaults to `chunk_size_bwd` |
 
@@ -70,19 +116,32 @@ peak memory to `chunk · n_conn` passes (never a `[M, n_conn, P]` tensor).
 `FullSumState` (exact enumeration, no Monte Carlo noise) is supported on the
 dense PII path.
 
-### Bundled model
+### Solvers
 
-`pii.models.RBMRealParams` is an RBM with a **complex log-amplitude but real
-parameters** — each complex weight is stored as a real/imaginary pair and
-combined internally — matching the paper's "real parameters, complex output"
-convention (`log Ψ = f + i g`). Use it with `mode="complex"` (or `mode=None`,
-which auto-detects).
+`Q = OᴴA − τOᴴO + λI` is in general **non-symmetric and indefinite**, so
+`pii.optimizer.solver` provides:
+
+- `pii_default_solver` — direct general-LU (the default; analogue of NetKet's
+  `cholesky_with_fallback`, but LU since `Q` is not Hermitian PSD);
+- `penrose_symmetrized_solver` — regularized least-squares `(QᴴQ + λI)⁻¹Qᴴb`
+  (the inner SPD system uses `cholesky_with_fallback`);
+- `naive_symmetrized_solver` — solves the (indefinite) Hermitian part `½(Q+Qᴴ)`;
+- `gmres`, `bicgstab` — matrix-free iterative solvers (no `cg`: `Q` is not PSD).
+
+### Bundled models
+
+`pii.models.RBMRealParams` / `pii.models.LogStateVectorRealParams` are ansätze with a
+**complex log-amplitude but real parameters** — each complex value is stored as a
+real/imaginary pair and combined internally — matching the paper's "real parameters,
+complex output" convention (`log Ψ = f + i g`). Use them with `mode="complex"` (or
+`mode=None`, which auto-detects).
 
 ## Examples
 
 ```bash
-python pii/examples/diag_hamiltonian_fig1.py   # paper Fig. 1 toy benchmark
-python pii/examples/compare_sr_pii_tfim.py     # SR vs PII on a small TFIM chain
+python examples/diag_hamiltonian_fig1.py   # paper Fig. 1 toy benchmark
+python examples/compare_sr_pii_tfim.py     # SR vs PII on a small TFIM chain
+python examples/compare_implementations.py      # VMC+PII vs VMC_PII vs netket VMC_SR (consistency)
 ```
 
 - `diag_hamiltonian_fig1.py` reproduces Figure 1: the toy Hamiltonian
@@ -90,9 +149,11 @@ python pii/examples/compare_sr_pii_tfim.py     # SR vs PII on a small TFIM chain
   showing PII converging almost immediately while SR oscillates slowly.
 - `compare_sr_pii_tfim.py` compares SR and every PII variant on a small,
   exactly-solvable 1D transverse-field Ising chain, all starting from identical
-  parameters. PII reaches ~machine precision while SR is limited by the
-  Monte Carlo sampling-noise floor; the `FullSumState` runs confirm both are
-  exact in the noise-free limit.
+  parameters.
+- `compare_implementations.py` shows the two entry points agree: `pii.driver.VMC` +
+  `pii.optimizer.PII` (with `QJacobianDense`, `QJacobianPyTree`, and the matrix-free
+  `gmres`) gives the same trajectory as the integrated `pii.driver.VMC_PII`, and the
+  SR path matches NetKet's `VMC_SR`.
 
 ## Tests
 
@@ -102,26 +163,32 @@ PII_TEST_DEVICES=2 python -m pytest test/       # multi-device / sharding
 ```
 
 The suite checks: exact reproduction of NetKet `VMC_SR` (`pii=False`), mutual
-agreement of the dense / minPII / on-the-fly PII paths, convergence of every
-variant (incl. PII-SPRING) and `FullSumState`, the local-energy derivative
-against finite differences, chunk-size invariance, device-count-invariant
-results under sharding, and the SR↔PII factor-of-2 / `η=1` / SPRING conventions.
+agreement of the dense / minPII / on-the-fly PII paths, the preconditioner path
+(`VMC` + `PII`) against the integrated `VMC_PII`, convergence of every variant
+(incl. PII-SPRING) and `FullSumState`, the local-energy derivative against finite
+differences, chunk-size invariance, device-count-invariant results under sharding,
+and the SR↔PII factor-of-2 / `η=1` / SPRING conventions.
 
 ## Layout
 
 ```
 pii/
-  driver.py              # pii.VMC — superset of VMC_SR (+ pii / tau / chunk_size_dEloc)
-  _ngd/
-    local_energy.py      # differentiable E_L and the A-function (E_L + sg(E_L)·logψ)
-    common.py            # O & A Jacobians, dispatch to dense / minPII
-    pii_dense.py         # dense:  Q = H − τS + λI            (P×P)
-    pii_kernel.py        # minPII: K = A Oᵀ − τ O Oᵀ + λI     (2M×2M, push-through)
-    pii_ntk.py           # two-function cross-NTK for the on-the-fly A Oᵀ term
-    pii_onthefly.py      # matrix-free minPII
-  examples/
-    diag_hamiltonian_fig1.py   # paper Fig. 1 (Ĥ = diag(1, 10, 0))
-    compare_sr_pii_tfim.py
+  driver/                  # ↔ netket.driver
+    vmc.py                 # pii.driver.VMC  — standard preconditioner-based driver
+    vmc_pii.py             # pii.driver.VMC_PII — integrated driver (superset of VMC_SR)
+  optimizer/               # ↔ netket.optimizer
+    preconditioner.py      # pii.optimizer.PII  — preconditioner (↔ SR)
+    q/                     # Q-matrix linear operators (↔ netket.optimizer.qgt)
+    solver/                # linear solvers (↔ netket.optimizer.solver)
+  ngd/                     # ↔ netket._src.ngd — the dense / minPII / on-the-fly kernels
+    local_energy.py        # differentiable E_L and the A-function (E_L + sg(E_L)·logψ)
+    common.py              # O & A Jacobians, dispatch to dense / minPII
+    pii_dense.py           # dense:  Q = H − τS + λI            (P×P)
+    pii_kernel.py          # minPII: K = A Oᵀ − τ O Oᵀ + λI     (2M×2M, push-through)
+    pii_ntk.py             # two-function cross-NTK for the on-the-fly A Oᵀ term
+    pii_onthefly.py        # matrix-free minPII
+  models.py                # RBMRealParams, LogStateVectorRealParams
+examples/
 test/
 ```
 

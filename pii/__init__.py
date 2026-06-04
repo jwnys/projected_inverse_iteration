@@ -1,17 +1,22 @@
 """Projected Inverse Iteration (PII) for neural quantum states.
 
-This package provides :class:`pii.VMC`, a drop-in superset of NetKet's
-``VMC_SR`` driver. With ``pii=False`` it reproduces Stochastic Reconfiguration
-(SR), minSR and their on-the-fly variants exactly. With ``pii=True`` it runs
-**Projected Inverse Iteration**, which reframes the ground-state search as an
-eigenvalue problem and is robust to small spectral gaps.
+This package mirrors NetKet's architecture as closely as possible, for seamless integration:
 
-See the paper "Projected Inverse Iteration: An Eigenvalue Approach to
-Ground-State Computation with Neural Quantum States".
+- :class:`pii.driver.VMC` ↔ ``netket.driver.VMC`` (standard, preconditioner-based);
+- :class:`pii.driver.VMC_PII` ↔ ``netket.driver.VMC_SR`` (integrated PII/SR driver);
+- :class:`pii.optimizer.PII` ↔ ``netket.optimizer.SR`` (gradient preconditioner);
+- :mod:`pii.optimizer.q` ↔ ``netket.optimizer.qgt`` (the ``Q``-matrix linear operators);
+- :mod:`pii.optimizer.solver` ↔ ``netket.optimizer.solver`` (linear solvers).
+
+As in NetKet, only the standard driver is aliased at the top level (``pii.VMC``); everything else
+is reached through its subpackage (``pii.driver.VMC_PII``, ``pii.optimizer.PII``,
+``pii.optimizer.solver.gmres``, ...).
+
+See the paper "Projected Inverse Iteration: An Eigenvalue Approach to Ground-State Computation
+with Neural Quantum States".
 """
 
+from pii import driver, models, optimizer
 from pii.driver import VMC
-from pii import models  # exposes pii.models.RBMRealParams
-from pii._ngd.solvers import penrose_symmetrized_solver, naive_symmetrized_solver
 
-__all__ = ["VMC", "models", "penrose_symmetrized_solver", "naive_symmetrized_solver"]
+__all__ = ["VMC", "driver", "models", "optimizer"]

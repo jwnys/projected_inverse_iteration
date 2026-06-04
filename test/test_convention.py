@@ -23,10 +23,10 @@ import optax
 import netket as nk
 
 import pii
-from pii._ngd.common import _prepare_input, _prepare_weights, get_samples_and_pdf
-from pii._ngd.local_energy import make_local_energy_funs
-from pii._ngd.pii_dense import _compute_pii_update_dense
-from pii._ngd.pii_kernel import _compute_minpii_update
+from pii.ngd.common import _prepare_input, _prepare_weights, get_samples_and_pdf
+from pii.ngd.local_energy import make_local_energy_funs
+from pii.ngd.pii_dense import _compute_pii_update_dense
+from pii.ngd.pii_kernel import _compute_minpii_update
 
 from .common import tfim, make_fullsum, fixed_inputs, gen_solver
 
@@ -52,7 +52,7 @@ def _assemble_fullsum(vs, H):
 def _one_step_param_delta(vs, H, **vmc_kw):
     """Run one driver step with η=1 and return ξ = θ_before − θ_after."""
     th0 = _ravel(vs.parameters)
-    d = pii.VMC(H, optax.sgd(1.0), variational_state=vs, mode="real", **vmc_kw)
+    d = pii.driver.VMC_PII(H, optax.sgd(1.0), variational_state=vs, mode="real", **vmc_kw)
     d.run(n_iter=1, show_progress=False)
     return th0 - _ravel(vs.parameters)
 
