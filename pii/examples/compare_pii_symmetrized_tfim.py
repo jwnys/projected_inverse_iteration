@@ -86,8 +86,7 @@ sym_solver = partial(pii.penrose_symmetrized_solver, diag_shift=diag_shift_pii_s
 runs = {
     "PII symmetrized FullSum": (
         lr_pii,
-        dict(diag_shift=0.0, pii=True, tau=tau, use_ntk=False, linear_solver=sym_solver,
-             fullsum=True),
+        dict(diag_shift=0.0, pii=True, tau=tau, use_ntk=False, linear_solver=sym_solver, fullsum=True),
     ),
     "PII symmetrized": (
         lr_pii,
