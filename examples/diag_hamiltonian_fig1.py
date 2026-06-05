@@ -48,12 +48,12 @@ H = nk.operator.LocalOperator(hi, operators=[np.diag([1.0, 10.0, 0.0])], acting_
 sr = pii.driver.VMC_PII(
     H, optax.sgd(0.1),
     variational_state=nk.vqs.FullSumState(hi, nk.models.LogStateVector(hi, param_dtype=float), seed=SEED),
-    diag_shift=0.0, pii=False, mode="real",
+    diag_shift=0.0, pii=False,
 )
 pii_drv = pii.driver.VMC_PII(
     H, optax.sgd(1.0),
     variational_state=nk.vqs.FullSumState(hi, nk.models.LogStateVector(hi, param_dtype=float), seed=SEED),
-    diag_shift=1e-8, pii=True, tau=1e-8, mode="real",
+    diag_shift=1e-8, pii=True, tau=1e-8,
 )
 
 # Run one iteration at a time, recording the energy error and the state vector.
