@@ -155,7 +155,7 @@ for label, (lr, kw) in runs.items():
     opt = optax.sgd(lr)
     # RBMRealParams has a complex log-amplitude (real params), so use mode="complex".
     # (mode="real" would truncate the phase and is only for real-output ansätze.)
-    driver = pii.driver.VMC_PII(H, opt, variational_state=vstate, mode="complex", **kw)
+    driver = pii.driver.VMC_PII(H, opt, variational_state=vstate, **kw)
     log = nk.logging.RuntimeLog()
     # warm up to trigger JIT compilation (not timed, not logged), then reset to the
     # shared start so the comparison still begins from identical parameters.

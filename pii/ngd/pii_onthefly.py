@@ -127,6 +127,7 @@ def pii_onthefly(
         if old_updates is None:
             old_updates = tree_map(jnp.zeros_like, parameters_real)
         else:
+            # still inefficient
             # residual μ (A − τ O) ξ_{k-1}, centered & scaled like dv
             acc_O = jvp_apply(_apply, old_updates)
             acc_A = jvp_apply(_apply_A, old_updates)

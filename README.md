@@ -130,11 +130,17 @@ dense PII path.
 
 ### Bundled models
 
-`pii.models.RBMRealParams` / `pii.models.LogStateVectorRealParams` are ansätze with a
-**complex log-amplitude but real parameters** — each complex value is stored as a
-real/imaginary pair and combined internally — matching the paper's "real parameters,
-complex output" convention (`log Ψ = f + i g`). Use them with `mode="complex"` (or
-`mode=None`, which auto-detects).
+All bundled ansätze have a **complex log-amplitude but real parameters** — matching the paper's
+"real parameters, complex output" convention (`log Ψ = f + i g`); use them with `mode="complex"`
+(or `mode=None`, which auto-detects):
+
+- `pii.models.RBMRealParams` — a complex-output RBM (each complex weight stored as a real/imaginary
+  pair, combined internally).
+- `pii.models.LogStateVectorRealParams` — the exact log-state-vector ansatz (one log-coefficient per
+  basis state), for small toy systems.
+- `pii.models.ViT` — a Vision-Transformer ansatz for 2D spin systems (patched spins, factored
+  multi-head attention, `log_cosh` complex output), after Viteritti, Rende & Becca,
+  [*Phys. Rev. Lett.* **130**, 236401 (2023)](https://doi.org/10.1103/PhysRevLett.130.236401).
 
 ## Examples
 
@@ -154,6 +160,19 @@ python examples/compare_implementations.py      # VMC+PII vs VMC_PII vs netket V
   `pii.optimizer.PII` (with `QJacobianDense`, `QJacobianPyTree`, and the matrix-free
   `gmres`) gives the same trajectory as the integrated `pii.driver.VMC_PII`, and the
   SR path matches NetKet's `VMC_SR`.
+
+## Benchmarks
+
+```bash
+python benchmarks/bench_pii_vs_sr.py       # per-step PII vs SR cost (RBM, system-size sweep)
+python benchmarks/bench_vit_variants.py    # per-step cost across all SR/PII variants (ViT, depth sweep)
+```
+
+PII's only per-step overhead vs SR is the local-energy-gradient (`A`-Jacobian), so one PII step
+should cost only a small constant (~3-4×) more than one SR step. `bench_pii_vs_sr.py` confirms this
+for the dense path and isolates the (now-fixed) per-step recompilation that previously inflated it;
+`bench_vit_variants.py` times every variant (dense, NTK/minSR-minPII, on-the-fly) on a Vision
+Transformer of varying depth.
 
 ## Tests
 
@@ -187,8 +206,12 @@ pii/
     pii_kernel.py          # minPII: K = A Oᵀ − τ O Oᵀ + λI     (2M×2M, push-through)
     pii_ntk.py             # two-function cross-NTK for the on-the-fly A Oᵀ term
     pii_onthefly.py        # matrix-free minPII
-  models.py                # RBMRealParams, LogStateVectorRealParams
+  models/                  # ↔ netket.models — one ansatz per file
+    rbm.py                 # RBMRealParams
+    log_state_vector.py    # LogStateVectorRealParams
+    vit.py                 # ViT (Vision Transformer, PRL 130, 236401)
 examples/
+benchmarks/                # per-VMC-step cost: SR vs PII (RBM size sweep; ViT depth sweep)
 test/
 ```
 
