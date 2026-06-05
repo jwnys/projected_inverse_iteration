@@ -103,7 +103,7 @@ gs.run(n_iter=100)
 | `diag_shift` | Tikhonov regularization `λ` (float or schedule) |
 | `use_ntk` | `True` → kernel trick (minSR / **minPII**, `2M×2M`); `False` → dense (`P×P`) |
 | `on_the_fly` | `True` → matrix-free / lazy NTK (lowest memory) |
-| `momentum` | SPRING / PII-SPRING damping (≈ 0.8) |
+| `momentum` | SPRING / PII-SPRING damping (≈ 0.8) — see the performance note below |
 | `linear_solver` | `(Q, b) -> (x, info)` solver (e.g. `pii.optimizer.solver.penrose_symmetrized_solver`) |
 | `chunk_size_bwd` | chunking of the `O` Jacobian / NTK (backward pass) |
 | `chunk_size_dEloc` | chunking of the **local-energy-derivative** (`A`) computation; defaults to `chunk_size_bwd` |
@@ -115,6 +115,10 @@ peak memory to `chunk · n_conn` passes (never a `[M, n_conn, P]` tensor).
 
 `FullSumState` (exact enumeration, no Monte Carlo noise) is supported on the
 dense PII path.
+
+> **Note:** **PII-SPRING** (`momentum` with `pii=True`) is **not yet optimized** and is
+> currently **slow** — it works correctly, but its per-step cost is higher than it should be.
+> Plain PII (no `momentum`) is the optimized path.
 
 ### Solvers
 
