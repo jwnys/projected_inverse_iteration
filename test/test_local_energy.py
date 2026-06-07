@@ -1,10 +1,10 @@
-"""The differentiable local energy and the ``A``-function (Eq. 28)."""
+"""The differentiable local energy and the ``A``-function."""
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 
-from pii.ngd.local_energy import make_local_energy_funs
+from nkpii.ngd.local_energy import make_local_energy_funs
 
 from .common import tfim, make_fullsum
 
@@ -41,7 +41,7 @@ def test_local_energy_derivative_finite_difference():
 
 
 def test_fA_jacobian_equals_A_definition():
-    """∂_θ f_A = ∂_θ E_L + E_L ∂_θ logψ  (the rows of the A matrix, Eq. 28)."""
+    """∂_θ f_A = ∂_θ E_L + E_L ∂_θ logψ  (the rows of the A matrix)."""
     _, hi, H, _ = tfim()
     vs = make_fullsum(hi, seed=0)
     f_EL, f_A = make_local_energy_funs(vs, H)

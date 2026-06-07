@@ -14,8 +14,8 @@ To exercise multiple devices::
 import jax.flatten_util as fu
 import numpy as np
 
-from pii.ngd.common import _pii_common
-from pii.ngd.pii_onthefly import pii_onthefly
+from nkpii.ngd.common import _pii_common
+from nkpii.ngd.pii_onthefly import pii_onthefly
 
 from .common import fixed_inputs, gen_solver
 

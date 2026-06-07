@@ -1,4 +1,4 @@
-r"""``pii.driver.VMC_PII``: a drop-in superset of NetKet's ``VMC_SR`` driver.
+r"""``nkpii.driver.VMC_PII``: a drop-in superset of NetKet's ``VMC_SR`` driver.
 
 With ``pii=False`` this reproduces SR / minSR / on-the-fly SR by delegating to
 NetKet's own ``sr`` / ``srt`` / ``srt_onthefly`` kernels.  With ``pii=True`` it
@@ -7,7 +7,7 @@ of SR's ``S ξ = ∇E``.
 
 This is the *integrated* PII driver (the analogue of ``netket.driver.VMC_SR``).  For the
 preconditioner-based route — the analogue of ``netket.driver.VMC`` + ``netket.optimizer.SR`` —
-use :class:`pii.driver.VMC` with :class:`pii.optimizer.PII`.
+use :class:`nkpii.driver.VMC` with :class:`nkpii.optimizer.PII`.
 """
 
 from typing import Any
@@ -34,10 +34,10 @@ from netket._src.callbacks.auto_chunk_size import get_forward_operator
 from netket._src.ngd.sr_srt_common import sr, srt, get_samples_and_pdf
 from netket._src.ngd.srt_onthefly import srt_onthefly
 
-from pii.ngd.common import _pii_common
-from pii.ngd.pii_onthefly import pii_onthefly
-from pii.ngd.local_energy import make_local_energy_funs
-from pii.optimizer.solver import pii_default_solver
+from nkpii.ngd.common import _pii_common
+from nkpii.ngd.pii_onthefly import pii_onthefly
+from nkpii.ngd.local_energy import make_local_energy_funs
+from nkpii.optimizer.solver import pii_default_solver
 
 
 class VMC_PII(AbstractOptimizationDriver):
@@ -45,7 +45,7 @@ class VMC_PII(AbstractOptimizationDriver):
 
     When ``pii=False`` the driver is mathematically identical to
     :class:`netket.driver.VMC_SR`. When ``pii=True`` the SR preconditioner ``S``
-    is replaced by ``Q = H - τ S + λ I`` (paper Eq. 17/29), where ``H`` is the
+    is replaced by ``Q = H - τ S + λ I``, where ``H`` is the
     Hamiltonian projected onto the variational tangent space and ``τ`` is the
     inverse-iteration shift (an estimate of, or undershoot of, the ground-state
     energy ``E0``). PII is robust to small spectral gaps.
@@ -107,7 +107,7 @@ class VMC_PII(AbstractOptimizationDriver):
                 Scalar or schedule ``Callable[[int], float]``.
             proj_reg: SPRING projection regularization (SR/minSR only).
             momentum: SPRING damping factor in ``[0, 1]`` (``~0.8`` works well).
-                Supported for PII too (PII-SPRING, paper App. G).
+                Supported for PII too (PII-SPRING).
             linear_solver: Linear solver ``(A, b) -> (x, info)``. Defaults to
                 :func:`netket.optimizer.solver.cholesky_with_fallback` when
                 ``pii=False`` and to a general LU solve when ``pii=True`` (since

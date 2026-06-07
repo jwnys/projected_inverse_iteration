@@ -5,7 +5,7 @@ r"""PII gradient preconditioner — the PII analogue of :class:`netket.optimizer
 ``SR``).  It reuses the base ``__init__``/``__call__``/solve machinery and only specializes the two
 genuinely PII-specific pieces:
 
-- :meth:`lhs_constructor` builds a ``Q``-matrix (:mod:`pii.optimizer.q`) instead of a QGT — which
+- :meth:`lhs_constructor` builds a ``Q``-matrix (:mod:`nkpii.optimizer.pct`) instead of a QGT — which
   additionally needs the **Hamiltonian** (for the ``A`` Jacobian) and the inverse-iteration shift
   **τ**;
 - :meth:`__call__` halves the gradient, because PII solves ``Q ξ = ½∇E`` while ``SR`` (and the
@@ -15,11 +15,11 @@ It deliberately omits ``SR``'s ``diag_scale`` (PII has no diagonal-scale concept
 reason it is a sibling of ``SR`` rather than a subclass), and its default solver is a general
 (non-symmetric) LU rather than ``cholesky``, since ``Q = OᴴA − τOᴴO + λI`` is not Hermitian PSD.
 
-Use it as the ``preconditioner`` of the standard :class:`pii.driver.VMC` driver::
+Use it as the ``preconditioner`` of the standard :class:`nkpii.driver.VMC` driver::
 
-    gs = pii.driver.VMC(
+    gs = nkpii.driver.VMC(
         H, optax.sgd(1.0), variational_state=vs,
-        preconditioner=pii.optimizer.PII(H, tau=1.2 * E0, diag_shift=1e-4),
+        preconditioner=nkpii.optimizer.PII(H, tau=1.2 * E0, diag_shift=1e-4),
     )
 """
 
@@ -32,8 +32,8 @@ from netket.utils.types import ScalarOrSchedule
 from netket.operator import AbstractOperator
 from netket.optimizer.preconditioner import AbstractLinearPreconditioner
 
-from pii.optimizer.q import QJacobianDense
-from pii.optimizer.solver import pii_default_solver
+from nkpii.optimizer.pct import PCTJacobianDense
+from nkpii.optimizer.solver import pii_default_solver
 
 
 class PII(AbstractLinearPreconditioner, mutable=True):
@@ -41,7 +41,7 @@ class PII(AbstractLinearPreconditioner, mutable=True):
 
     Preconditions the energy gradient ``∇E`` so the preconditioned gradient ``ξ`` solves the PII
     system ``(OᴴA − τ OᴴO + diag_shift·I) ξ = ½∇E``.  Pass it as the ``preconditioner`` of
-    :class:`pii.driver.VMC`.
+    :class:`nkpii.driver.VMC`.
     """
 
     hamiltonian: AbstractOperator = struct.field(
@@ -56,7 +56,7 @@ class PII(AbstractLinearPreconditioner, mutable=True):
     """The Tikhonov shift added to the diagonal of ``Q`` (scalar or schedule)."""
 
     q_constructor: Callable = struct.static_field(default=None)
-    """The ``Q``-matrix constructor (``QJacobianDense`` / ``QJacobianPyTree``) — the PII analogue of
+    """The ``Q``-matrix constructor (``PCTJacobianDense`` / ``PCTJacobianPyTree``) — the PII analogue of
     ``SR``'s ``qgt`` argument."""
 
     q_kwargs: dict = struct.field(serialize=False, default=None)
@@ -77,12 +77,12 @@ class PII(AbstractLinearPreconditioner, mutable=True):
 
         Args:
             hamiltonian: the Hamiltonian (needed to build the ``A`` Jacobian).
-            q: the ``Q``-matrix constructor — :class:`pii.optimizer.q.QJacobianDense` (default) or
-                :class:`~pii.optimizer.q.QJacobianPyTree`.  Plays the role of ``SR``'s ``qgt`` arg.
+            q: the ``Q``-matrix constructor — :class:`nkpii.optimizer.pct.PCTJacobianDense` (default) or
+                :class:`~nkpii.optimizer.pct.PCTJacobianPyTree`.  Plays the role of ``SR``'s ``qgt`` arg.
             solver: an operator-aware ``(A, b) -> (x, info)`` solver.  Defaults to
-                :func:`pii.optimizer.solver.pii_default_solver` (direct general LU, since ``Q`` is
-                non-symmetric).  Use :func:`~pii.optimizer.solver.gmres` /
-                :func:`~pii.optimizer.solver.bicgstab` for a matrix-free solve.
+                :func:`nkpii.optimizer.solver.pii_default_solver` (direct general LU, since ``Q`` is
+                non-symmetric).  Use :func:`~nkpii.optimizer.solver.gmres` /
+                :func:`~nkpii.optimizer.solver.bicgstab` for a matrix-free solve.
             tau: the inverse-iteration shift ``τ`` (``≈ E0``).
             diag_shift: Tikhonov shift on the diagonal of ``Q``.
             solver_restart: warm-start the solver from the previous solution.
@@ -90,7 +90,7 @@ class PII(AbstractLinearPreconditioner, mutable=True):
                 ``chunk_size=...``).
         """
         if q is None:
-            q = QJacobianDense
+            q = PCTJacobianDense
         self.hamiltonian = hamiltonian
         self.tau = tau
         self.diag_shift = diag_shift

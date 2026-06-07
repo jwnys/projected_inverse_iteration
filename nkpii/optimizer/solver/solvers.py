@@ -2,16 +2,16 @@ r"""Linear solvers for PII — the PII analogue of :mod:`netket.optimizer.solver
 
 These follow NetKet's solver contract exactly: each is a callable ``(A, b) -> (x, info)``
 where ``A`` is **either** a dense matrix **or** a :class:`~netket.optimizer.LinearOperator`
-(here a :class:`pii.optimizer.q.QJacobianDenseT` / ``QJacobianPyTreeT``), and ``b`` is a vector
+(here a :class:`nkpii.optimizer.pct.PCTJacobianDenseT` / ``PCTJacobianPyTreeT``), and ``b`` is a vector
 or PyTree.  As in NetKet, the **direct** solvers materialize the operator with
 ``A.to_dense()`` and flatten the rhs with :func:`jax.flatten_util.ravel_pytree`; the
 **iterative** solvers stay matrix-free, using only the lazy ``A @ v``.
 
-They plug into both the PII preconditioner — ``pii.optimizer.PII(..., solver=...)`` — and the
-integrated driver — ``pii.driver.VMC_PII(..., linear_solver=...)``.  Decorated with NetKet's
+They plug into both the PII preconditioner — ``nkpii.optimizer.PII(..., solver=...)`` — and the
+integrated driver — ``nkpii.driver.VMC_PII(..., linear_solver=...)``.  Decorated with NetKet's
 :func:`~netket.utils.api_utils.partial_from_kwargs`, so a keyword-only call returns a partial::
 
-    pii.optimizer.solver.penrose_symmetrized_solver(diag_shift=1e-2)   # (Q, b) -> (x, info)
+    nkpii.optimizer.solver.penrose_symmetrized_solver(diag_shift=1e-2)   # (Q, b) -> (x, info)
 
 **Why not Cholesky/CG by default?**  PII's ``Q = OᴴA − τOᴴO + λI`` is in general **non-symmetric
 and indefinite** (only asymptotically Hermitian), so the default direct solver is a general LU
@@ -35,11 +35,11 @@ def pii_default_solver(A, b, *, x0=None):
 
     The PII analogue of NetKet's ``SR`` default ``cholesky_with_fallback`` — direct, but LU
     rather than Cholesky because ``Q = OᴴA − τOᴴO + λI`` is not Hermitian PSD.  Accepts a dense
-    ``Q`` (from the ngd kernels) or a ``QJacobian`` operator (from the preconditioner), and a
+    ``Q`` (from the ngd kernels) or a ``PCTJacobian`` operator (from the preconditioner), and a
     flat or PyTree rhs.
 
     Args:
-        A: the dense PII matrix ``Q`` or a ``QJacobian`` operator.
+        A: the dense PII matrix ``Q`` or a ``PCTJacobian`` operator.
         b: the right-hand side ``½∇E`` (vector or PyTree).
         x0: unused (kept for the NetKet solver signature).
 
@@ -91,7 +91,7 @@ def penrose_symmetrized_solver(A, b, *, diag_shift, solver=cholesky_with_fallbac
         minPII kernel ``K`` — keep ``use_ntk=False``/``on_the_fly=False`` when used via the driver.
 
     Args:
-        A: the dense PII matrix ``Q`` (or a ``QJacobian`` operator).
+        A: the dense PII matrix ``Q`` (or a ``PCTJacobian`` operator).
         b: the right-hand side ``½∇E``.
         diag_shift: Tikhonov regularization on the normal equations (keyword-only, energy² units).
         solver: inner ``(A, b) -> (x, info)`` solver for the SPD system
@@ -143,7 +143,7 @@ def naive_symmetrized_solver(A, b, *, diag_shift, solver=None, x0=None):
         by this solver's ``diag_shift``.
 
     Args:
-        A: the dense PII matrix ``Q`` (or NTK kernel ``K``, or a ``QJacobian`` operator).
+        A: the dense PII matrix ``Q`` (or NTK kernel ``K``, or a ``PCTJacobian`` operator).
         b: the right-hand side ``½∇E``.
         diag_shift: Tikhonov regularization added to ``½(Q+Qᴴ)`` (keyword-only, energy units).
         solver: optional inner ``(A, b) -> (x, info)`` solver for ``(½(Q+Qᴴ) + diag_shift·I) ξ = b``.
@@ -176,7 +176,7 @@ def gmres(A, b, *, x0=None, **kwargs):
     :func:`jax.scipy.sparse.linalg.gmres` (e.g. ``tol``, ``atol``, ``restart``, ``maxiter``, ``M``).
 
     Args:
-        A: a ``QJacobian`` operator (or a dense matrix); only ``A @ v`` is used.
+        A: a ``PCTJacobian`` operator (or a dense matrix); only ``A @ v`` is used.
         b: the right-hand side ``½∇E``.
         x0: optional initial guess.
 
@@ -195,7 +195,7 @@ def bicgstab(A, b, *, x0=None, **kwargs):
     :func:`jax.scipy.sparse.linalg.bicgstab`.
 
     Args:
-        A: a ``QJacobian`` operator (or a dense matrix); only ``A @ v`` is used.
+        A: a ``PCTJacobian`` operator (or a dense matrix); only ``A @ v`` is used.
         b: the right-hand side ``½∇E``.
         x0: optional initial guess.
 

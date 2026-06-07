@@ -1,16 +1,16 @@
 r"""Per-VMC-step cost of SR vs PII across *all* variants, on a ViT ansatz of varying depth.
 
-The headline question: how much more expensive is one PII update step than one SR step, for a
-realistic deep ansatz, across every implementation form (dense, kernel/NTK = minSR/minPII, and
-matrix-free on-the-fly)? PII's only extra ingredient is the local-energy-gradient ``A``-Jacobian, so
-we expect a small constant — hopefully **≤ ~4×** — *provided* the per-step recompilation bug is fixed
-(it is: ``f_A`` is a ``HashablePartial`` shared by all PII paths).
+The question: how much more expensive is one PII update step than one SR step, for a realistic deep
+ansatz, across every implementation form (dense, kernel/NTK = minSR/minPII, and matrix-free
+on-the-fly)? PII's only extra ingredient is the local-energy-gradient ``A``-Jacobian, so the cost
+should be a small constant (around 4× or less) once the per-step recompilation is avoided (``f_A`` is
+a ``HashablePartial`` shared by all PII paths).
 
-Setup: a small 2D square-lattice Heisenberg model (the physics is incidental — only the ansatz matters
-here) with a Vision-Transformer wavefunction (:class:`pii.models.ViT`, real params / complex output,
-architecture after Viteritti-Rende-Becca, PRL 130, 236401). We sweep the **number of transformer
-layers** and time **one update step** per variant: ``driver.compute_loss_and_update`` on a fixed set of
-samples (sampling is common to SR and PII, so excluding it isolates the SR-vs-PII difference).
+Setup: a small 2D square-lattice Heisenberg model (the physics is incidental here, only the ansatz
+matters) with a Vision-Transformer wavefunction (:class:`nkpii.models.ViT`, real params / complex
+output, architecture after Viteritti-Rende-Becca, PRL 130, 236401). The number of transformer layers
+is swept, and one update step is timed per variant: ``driver.compute_loss_and_update`` on a fixed set
+of samples (sampling is common to SR and PII, so excluding it isolates the SR-vs-PII difference).
 
 Run::
 
@@ -26,7 +26,7 @@ import optax
 import netket as nk
 import matplotlib.pyplot as plt
 
-import pii
+import nkpii
 
 HERE = Path(__file__).parent
 
@@ -67,7 +67,7 @@ def median_ms(thunk, reps, warmup):
 
 
 def bench_layers(num_layers, include_dense):
-    model = pii.models.ViT(
+    model = nkpii.models.ViT(
         num_layers=num_layers, d_model=D_MODEL, n_heads=N_HEADS, patch_size=PATCH,
         transl_invariant=True,
     )
@@ -77,7 +77,7 @@ def bench_layers(num_layers, include_dense):
     for label, _family, kw, is_dense in VARIANTS:
         if is_dense and not include_dense:
             continue
-        driver = pii.driver.VMC_PII(
+        driver = nkpii.driver.VMC_PII(
             H, optax.sgd(0.01), variational_state=vs, diag_shift=DIAG_SHIFT, mode="complex", **kw
         )
         # dense is much slower → fewer reps

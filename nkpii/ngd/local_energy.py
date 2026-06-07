@@ -1,8 +1,7 @@
 r"""Differentiable local energy and the PII ``A``-function.
 
 The new ingredient of PII compared to SR is the derivative of the local energy
-:math:`E_{L,\theta} = \partial_\theta E_L`.  The :math:`A` matrix of the paper
-(Eq. 28) has rows
+:math:`E_{L,\theta} = \partial_\theta E_L`.  The :math:`A` matrix has rows
 
 .. math::
     A_n = E_{L,\theta}(x_n) + E_L(x_n)\,(J(x_n) - \langle J\rangle),
@@ -36,16 +35,15 @@ configurations internally, the per-sample Jacobian of ``f_A`` is a single ``[P]`
 bounds peak memory to ``chunk_size · n_conn`` forward/backward passes, never a
 ``[M, n_conn, P]`` tensor.
 
-**Stability for JIT (why ``HashablePartial``).** ``f_A`` is passed as a *static* argument to
-the jitted ``_pii_common`` kernel (and to ``nkjax.jacobian``).  If it were a fresh ``def``
-closure each step, every step would hash differently → a jit cache miss → a full
-**recompilation every iteration** (we measured ~170 ms of wasted compile per step).  NetKet
-avoids exactly this by keeping its ``local_kernel`` a stable/module-level function and, where a
-closure is unavoidable, wrapping it in :class:`netket.jax.HashablePartial` (which compares by
-``func.__code__`` + bound args).  We mirror that: ``f_EL``/``f_A`` are ``HashablePartial`` of the
-**module-level** ``_f_EL_impl``/``_f_A_impl``, binding only the stable, hashable ``apply_fun``
-(itself a ``HashablePartial`` in NetKet), ``kernel`` and operator ``args``.  Two freshly-built
-``f_A`` then hash **equal**, so the kernel is compiled **once** and reused.
+Stability for JIT (why ``HashablePartial``). ``f_A`` is passed as a static argument to the jitted
+``_pii_common`` kernel (and to ``nkjax.jacobian``). A fresh ``def`` closure each step would hash
+differently, causing a jit cache miss and a full recompilation on every iteration. NetKet keeps its
+``local_kernel`` a stable module-level function and, where a closure is unavoidable, wraps it in
+:class:`netket.jax.HashablePartial`, which compares by ``func.__code__`` and bound arguments. The
+same approach is used here: ``f_EL``/``f_A`` are ``HashablePartial`` of the module-level
+``_f_EL_impl``/``_f_A_impl``, binding the stable, hashable ``apply_fun`` (itself a ``HashablePartial``
+in NetKet), ``kernel`` and operator ``args``. Two freshly-built ``f_A`` then hash equal, so the
+kernel is compiled once and reused.
 """
 
 import jax
@@ -102,7 +100,7 @@ def make_local_energy_funs(vstate, operator):
 
     - ``f_EL`` returns the local energies :math:`E_L`.
     - ``f_A`` returns :math:`E_L + \mathrm{sg}(E_L)\,\log\psi`, whose Jacobian
-      w.r.t. the parameters is the PII matrix ``A`` (Eq. 28).
+      w.r.t. the parameters is the PII matrix ``A``.
 
     Both are :class:`netket.jax.HashablePartial` of module-level impls so that, even though they
     are rebuilt every optimization step, they compare **equal** across steps and the jitted PII

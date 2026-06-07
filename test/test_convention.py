@@ -1,14 +1,14 @@
-r"""Lock the SR↔PII factor-of-2, η=1, and SPRING conventions.
+r"""Lock the SR/PII factor-of-2, η=1, and SPRING conventions.
 
 These tests pin, against independent references (NetKet's own energy gradient and
 hand-assembled linear systems), that:
 
 - SR solves ``S ξ = ∇E``           (no ½),
 - PII solves ``Q ξ = ½∇E`` with ``Q = H − τS + λI``, and the driver with ``η=1``
-  applies exactly ``θ ← θ − Q⁻¹(½∇E)`` (paper Eq. 5),
+  applies exactly ``θ ← θ − Q⁻¹(½∇E)``,
 - the ½ is the *only* difference (adversarial "missing-½ would 2×" control, and the
   τ→−∞ asymptotic ``‖ξ_PII‖/‖ξ_SR‖ → 1/(2|τ|)``),
-- SPRING carries the ½ and the ``λμ`` anchor correctly (Eq. 36), with all paths
+- SPRING carries the ½ and the ``λμ`` anchor correctly, with all paths
   consistent and ``momentum=0`` ≡ plain PII.
 
 All deterministic: exact ``FullSumState`` (no MC noise) for the gradient/step checks,
@@ -22,11 +22,11 @@ import numpy as np
 import optax
 import netket as nk
 
-import pii
-from pii.ngd.common import _prepare_input, _prepare_weights, get_samples_and_pdf
-from pii.ngd.local_energy import make_local_energy_funs
-from pii.ngd.pii_dense import _compute_pii_update_dense
-from pii.ngd.pii_kernel import _compute_minpii_update
+import nkpii
+from nkpii.ngd.common import _prepare_input, _prepare_weights, get_samples_and_pdf
+from nkpii.ngd.local_energy import make_local_energy_funs
+from nkpii.ngd.pii_dense import _compute_pii_update_dense
+from nkpii.ngd.pii_kernel import _compute_minpii_update
 
 from .common import tfim, make_fullsum, fixed_inputs, gen_solver
 
@@ -52,7 +52,7 @@ def _assemble_fullsum(vs, H):
 def _one_step_param_delta(vs, H, **vmc_kw):
     """Run one driver step with η=1 and return ξ = θ_before − θ_after."""
     th0 = _ravel(vs.parameters)
-    d = pii.driver.VMC_PII(H, optax.sgd(1.0), variational_state=vs, mode="real", **vmc_kw)
+    d = nkpii.driver.VMC_PII(H, optax.sgd(1.0), variational_state=vs, mode="real", **vmc_kw)
     d.run(n_iter=1, show_progress=False)
     return th0 - _ravel(vs.parameters)
 
@@ -113,7 +113,7 @@ def test_sr_step_is_Sinv_grad_no_half():
 
 
 # --------------------------------------------------------------------------- #
-# SPRING: dense update matches the Eq. 36 closed form  ξ = Q⁻¹(½∇E + λμ ξ_{k-1})
+# SPRING: dense update matches the closed form  ξ = Q⁻¹(½∇E + λμ ξ_{k-1})
 # --------------------------------------------------------------------------- #
 def _fixed_OAdv(n_samples=64):
     log_psi, f_A, eloc, params, samples = fixed_inputs(n_samples=n_samples)

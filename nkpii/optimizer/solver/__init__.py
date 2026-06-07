@@ -7,7 +7,7 @@ r"""PII linear solvers — the PII analogue of :mod:`netket.optimizer.solver`.
   ``Q`` is not Hermitian PSD).
 """
 
-from pii.optimizer.solver.solvers import (
+from nkpii.optimizer.solver.solvers import (
     pii_default_solver as pii_default_solver,
     penrose_symmetrized_solver as penrose_symmetrized_solver,
     naive_symmetrized_solver as naive_symmetrized_solver,

@@ -1,10 +1,10 @@
-r"""PyTree ``Q``-matrix linear operator for PII (analogue of NetKet's ``QGTJacobianPyTree``).
+r"""PyTree Projected Characteristic Tensor (PCT) operator for PII (analogue of ``QGTJacobianPyTree``).
 
-Like :class:`pii.optimizer.q.QJacobianDenseT` but the two Jacobians ``O`` and ``A`` are
+Like :class:`nkpii.optimizer.pct.PCTJacobianDenseT` but the two Jacobians ``O`` and ``A`` are
 kept as **PyTrees** (one leaf per parameter group, shape ``[n_samples, ...]`` /
 ``[n_samples, 2, ...]``) instead of one flat dense array — cheaper when materializing the
 dense Jacobian is expensive.  ``Q @ v`` / ``Qᴴ @ v`` use NetKet's tree ``_jvp``/``_vjp``;
-``Q`` is assembled only by :meth:`~QJacobianPyTreeT.to_dense`.
+``Q`` is assembled only by :meth:`~PCTJacobianPyTreeT.to_dense`.
 """
 
 import jax
@@ -20,7 +20,7 @@ from netket.optimizer.qgt.qgt_jacobian_pytree import _jvp, _vjp
 
 
 @struct.dataclass
-class QJacobianPyTreeT(LinearOperator):
+class PCTJacobianPyTreeT(LinearOperator):
     """Semi-lazy PyTree PII ``Q``-matrix as a :class:`LinearOperator`."""
 
     O: PyTree = Uninitialized
@@ -43,7 +43,7 @@ class QJacobianPyTreeT(LinearOperator):
     _conj_transpose: bool = struct.field(pytree_node=False, default=False)
 
     @property
-    def H(self) -> "QJacobianPyTreeT":
+    def H(self) -> "PCTJacobianPyTreeT":
         """The conjugate-transpose operator ``Qᴴ``."""
         return self.replace(_conj_transpose=not self._conj_transpose)
 
@@ -128,7 +128,7 @@ class QJacobianPyTreeT(LinearOperator):
 
     def __repr__(self):
         return (
-            f"QJacobianPyTree(tau={self.tau}, diag_shift={self.diag_shift}, "
+            f"PCTJacobianPyTree(tau={self.tau}, diag_shift={self.diag_shift}, "
             f"mode={self.mode}{', Hᵀ' if self._conj_transpose else ''})"
         )
 

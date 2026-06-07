@@ -42,7 +42,7 @@ def fixed_inputs(n_samples: int = 128, seed: int = 0):
     PII update can be computed directly via the ``_ngd`` kernels, independent of
     sampling RNG, device count or chunking.
     """
-    from pii.ngd.local_energy import make_local_energy_funs
+    from nkpii.ngd.local_energy import make_local_energy_funs
 
     _, hi, H, _ = tfim()
     ma = nk.models.RBM(alpha=2, param_dtype=float)

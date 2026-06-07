@@ -1,5 +1,5 @@
-"""The preconditioner path (`pii.driver.VMC` + `pii.optimizer.PII`) must agree with the
-integrated `pii.driver.VMC_PII`, across the Dense/PyTree Q-operators and the matrix-free
+"""The preconditioner path (`nkpii.driver.VMC` + `nkpii.optimizer.PII`) must agree with the
+integrated `nkpii.driver.VMC_PII`, across the Dense/PyTree PCT operators and the matrix-free
 solvers — and the SR path must agree with `VMC_PII(pii=False)` (≡ NetKet `VMC_SR`)."""
 
 import numpy as np
@@ -9,8 +9,8 @@ import optax
 import pytest
 import netket as nk
 
-import pii
-from pii.optimizer.q import QJacobianDense, QJacobianPyTree
+import nkpii
+from nkpii.optimizer.pct import PCTJacobianDense, PCTJacobianPyTree
 
 from .common import tfim, make_fullsum, rel_error
 
@@ -26,23 +26,23 @@ def _params_after(make_driver, n=1):
     return ravel_pytree(vs.parameters)[0]
 
 
-@pytest.mark.parametrize("q", [QJacobianDense, QJacobianPyTree], ids=["dense", "pytree"])
+@pytest.mark.parametrize("q", [PCTJacobianDense, PCTJacobianPyTree], ids=["dense", "pytree"])
 def test_pii_preconditioner_matches_vmc_pii(q):
     """`VMC + PII(q=...)` == integrated `VMC_PII(pii=True, use_ntk=False)`, step for step."""
     _, _, H, E0 = tfim()
     tau = TAU_FACTOR * E0
 
     p_pre = _params_after(
-        lambda vs: pii.driver.VMC(
+        lambda vs: nkpii.driver.VMC(
             H, optax.sgd(1.0), variational_state=vs,
-            preconditioner=pii.optimizer.PII(
+            preconditioner=nkpii.optimizer.PII(
                 H, q=q, tau=tau, diag_shift=DIAG_SHIFT, mode="real"
             ),
         ),
         n=3,
     )
     p_int = _params_after(
-        lambda vs: pii.driver.VMC_PII(
+        lambda vs: nkpii.driver.VMC_PII(
             H, optax.sgd(1.0), variational_state=vs,
             diag_shift=DIAG_SHIFT, pii=True, tau=tau, mode="real", use_ntk=False,
         ),
@@ -57,17 +57,17 @@ def test_pii_gmres_matrixfree_matches_dense():
     tau = TAU_FACTOR * E0
 
     p_direct = _params_after(
-        lambda vs: pii.driver.VMC(
+        lambda vs: nkpii.driver.VMC(
             H, optax.sgd(1.0), variational_state=vs,
-            preconditioner=pii.optimizer.PII(H, tau=tau, diag_shift=DIAG_SHIFT, mode="real"),
+            preconditioner=nkpii.optimizer.PII(H, tau=tau, diag_shift=DIAG_SHIFT, mode="real"),
         ),
     )
     p_gmres = _params_after(
-        lambda vs: pii.driver.VMC(
+        lambda vs: nkpii.driver.VMC(
             H, optax.sgd(1.0), variational_state=vs,
-            preconditioner=pii.optimizer.PII(
+            preconditioner=nkpii.optimizer.PII(
                 H, tau=tau, diag_shift=DIAG_SHIFT, mode="real",
-                solver=pii.optimizer.solver.gmres(tol=1e-10, restart=200, maxiter=4),
+                solver=nkpii.optimizer.solver.gmres(tol=1e-10, restart=200, maxiter=4),
             ),
         ),
     )
@@ -78,9 +78,9 @@ def test_pii_preconditioner_converges():
     """`VMC + PII` reaches the ground-state energy on a FullSumState."""
     _, hi, H, E0 = tfim()
     vs = make_fullsum(hi, seed=0)
-    pii.driver.VMC(
+    nkpii.driver.VMC(
         H, optax.sgd(1.0), variational_state=vs,
-        preconditioner=pii.optimizer.PII(H, tau=TAU_FACTOR * E0, diag_shift=DIAG_SHIFT, mode="real"),
+        preconditioner=nkpii.optimizer.PII(H, tau=TAU_FACTOR * E0, diag_shift=DIAG_SHIFT, mode="real"),
     ).run(n_iter=50, show_progress=False)
     assert rel_error(vs, H, E0) < 1e-3
 
@@ -91,7 +91,7 @@ def test_sr_preconditioner_matches_vmc_sr():
     solver = nk.optimizer.solver.cholesky_with_fallback
 
     p_pre = _params_after(
-        lambda vs: pii.driver.VMC(
+        lambda vs: nkpii.driver.VMC(
             H, optax.sgd(0.05), variational_state=vs,
             preconditioner=nk.optimizer.SR(
                 qgt=nk.optimizer.qgt.QGTJacobianDense, solver=solver,
@@ -101,7 +101,7 @@ def test_sr_preconditioner_matches_vmc_sr():
         n=3,
     )
     p_sr = _params_after(
-        lambda vs: pii.driver.VMC_PII(
+        lambda vs: nkpii.driver.VMC_PII(
             H, optax.sgd(0.05), variational_state=vs,
             diag_shift=0.01, pii=False, mode="real", use_ntk=False,
             linear_solver=solver,

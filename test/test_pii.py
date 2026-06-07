@@ -8,8 +8,8 @@ import numpy as np
 import optax
 import pytest
 
-import pii
-from pii.optimizer.solver import penrose_symmetrized_solver
+import nkpii
+from nkpii.optimizer.solver import penrose_symmetrized_solver
 
 from .common import tfim, make_mcstate, make_fullsum, rel_error
 
@@ -17,7 +17,7 @@ from .common import tfim, make_mcstate, make_fullsum, rel_error
 def _one_step_dp(H, hi, **kw):
     """Return the (flattened) parameter update of the first PII step."""
     vs = make_mcstate(hi, seed=0)
-    d = pii.driver.VMC_PII(H, optax.sgd(1.0), variational_state=vs, **kw)
+    d = nkpii.driver.VMC_PII(H, optax.sgd(1.0), variational_state=vs, **kw)
     d.run(n_iter=1, show_progress=False)
     return jax.flatten_util.ravel_pytree(d._dp)[0]
 
@@ -56,7 +56,7 @@ def test_onthefly_chunking_is_exact():
 def test_pii_converges(kw):
     _, hi, H, E0 = tfim()
     vs = make_mcstate(hi, seed=0)
-    d = pii.driver.VMC_PII(
+    d = nkpii.driver.VMC_PII(
         H, optax.sgd(1.0), variational_state=vs, diag_shift=0.1, pii=True,
         tau=1.2 * E0, mode="real", **kw,
     )
@@ -67,7 +67,7 @@ def test_pii_converges(kw):
 def test_pii_fullsum_dense_converges():
     _, hi, H, E0 = tfim()
     vs = make_fullsum(hi, seed=0)
-    d = pii.driver.VMC_PII(
+    d = nkpii.driver.VMC_PII(
         H, optax.sgd(1.0), variational_state=vs, diag_shift=0.1, pii=True,
         tau=1.2 * E0, mode="real",
     )
@@ -79,7 +79,7 @@ def test_tau_required_for_pii():
     _, hi, H, _ = tfim()
     vs = make_mcstate(hi, seed=0)
     with pytest.raises(ValueError):
-        pii.driver.VMC_PII(H, optax.sgd(1.0), variational_state=vs, diag_shift=0.1, pii=True)
+        nkpii.driver.VMC_PII(H, optax.sgd(1.0), variational_state=vs, diag_shift=0.1, pii=True)
 
 
 def test_mode_real_rejects_complex_params():
@@ -92,9 +92,9 @@ def test_mode_real_rejects_complex_params():
         nk.models.RBM(alpha=2, param_dtype=complex), n_samples=512, seed=0,
     )
     with pytest.raises(ValueError, match="mode='real'"):
-        pii.driver.VMC_PII(H, optax.sgd(1.0), variational_state=vs, diag_shift=0.1, mode="real")
+        nkpii.driver.VMC_PII(H, optax.sgd(1.0), variational_state=vs, diag_shift=0.1, mode="real")
     # complex mode is fine with complex params
-    pii.driver.VMC_PII(H, optax.sgd(1.0), variational_state=vs, diag_shift=0.1, pii=True,
+    nkpii.driver.VMC_PII(H, optax.sgd(1.0), variational_state=vs, diag_shift=0.1, pii=True,
             tau=1.2 * (-8.0), mode="complex")
 
 
@@ -102,7 +102,7 @@ def test_tau_schedule():
     """tau can be a schedule Callable[[int], float]."""
     _, hi, H, E0 = tfim()
     vs = make_mcstate(hi, seed=0)
-    d = pii.driver.VMC_PII(
+    d = nkpii.driver.VMC_PII(
         H, optax.sgd(1.0), variational_state=vs, diag_shift=0.1, pii=True,
         tau=lambda step: 1.2 * E0, mode="real",
     )
@@ -121,7 +121,7 @@ def test_penrose_symmetrized_solver_math():
     b = rng.standard_normal(n)
 
     reg = 1e-3
-    # solvers follow NetKet's contract: A is a jax array (or a Q operator), never numpy.
+    # solvers follow NetKet's contract: A is a jax array (or a PCT operator), never numpy.
     x, info = penrose_symmetrized_solver(jnp.asarray(Q), jnp.asarray(b), diag_shift=reg)
     expected = np.linalg.solve(Q.T @ Q + reg * np.eye(n), Q.T @ b)
     assert info is not None  # default inner solver is cholesky_with_fallback (returns an info dict)
@@ -149,7 +149,7 @@ def test_pii_symmetrized_fullsum_converges():
     """Symmetrized PII (diag_shift=0, solver carries reg) converges in FullSum."""
     _, hi, H, E0 = tfim()
     vs = make_fullsum(hi, seed=0)
-    d = pii.driver.VMC_PII(
+    d = nkpii.driver.VMC_PII(
         H, optax.sgd(1.0), variational_state=vs, diag_shift=0.0, pii=True,
         tau=1.2 * E0, mode="real",
         linear_solver=partial(penrose_symmetrized_solver, diag_shift=1e-3),
@@ -162,7 +162,7 @@ def test_pii_symmetrized_converges():
     """Symmetrized PII converges under Monte Carlo sampling."""
     _, hi, H, E0 = tfim()
     vs = make_mcstate(hi, seed=0)
-    d = pii.driver.VMC_PII(
+    d = nkpii.driver.VMC_PII(
         H, optax.sgd(1.0), variational_state=vs, diag_shift=0.0, pii=True,
         tau=1.2 * E0, mode="real",
         linear_solver=partial(penrose_symmetrized_solver, diag_shift=1e-3),
@@ -178,8 +178,8 @@ def test_penrose_symmetrized_solver_pseudoinverse_rank_deficient():
     ansätze, where Q = H − τS is singular and Q⁻¹ does not exist), the Tikhonov-
     regularized Euclidean least-squares problem converges to the Moore-Penrose
     pseudo-inverse solution `pinv(Q) @ b` as reg → 0. (Standard PII regularizes the
-    same step differently — in the b-inner-product geometry, paper Eq. 32-33 — so
-    this is a different update on the null space, not a strictly "more correct" one.)
+    same step differently — in the b-inner-product geometry — so this is a different
+    update on the null space, not a strictly "more correct" one.)
     """
     rng = np.random.default_rng(1)
     n, rank = 20, 14

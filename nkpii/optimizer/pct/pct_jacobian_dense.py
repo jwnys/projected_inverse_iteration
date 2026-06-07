@@ -1,17 +1,17 @@
-r"""Dense ``Q``-matrix linear operator for PII (analogue of NetKet's ``QGTJacobianDense``).
+r"""Dense Projected Characteristic Tensor (PCT) operator for PII (analogue of ``QGTJacobianDense``).
 
 Where NetKet's QGT stores the single Jacobian ``O`` and represents the metric
-``S = OᴴO``, the PII ``Q``-matrix stores **two** Jacobians — ``O`` (of ``logψ``) and
+``S = OᴴO``, the PCT operator stores **two** Jacobians — ``O`` (of ``logψ``) and
 ``A`` (of ``f_A``) — and represents the (generally non-Hermitian) PII matrix
 
 .. math::
     Q = Oᴴ A - τ\, Oᴴ O \;(+\; \mathrm{diag\_shift}\, I).
 
 As in NetKet, the operator is **semi-lazy**: only ``O`` and ``A`` are stored; the dense
-``Q`` is materialized **only** by :meth:`~QJacobianDenseT.to_dense`.  Matrix–vector
+``Q`` is materialized **only** by :meth:`~PCTJacobianDenseT.to_dense`.  Matrix–vector
 products ``Q @ v`` and ``Qᴴ @ v`` are computed directly from ``O`` and ``A`` without ever
 forming ``Q`` (enabling iterative solvers — GMRES on ``Q``, or CGNE/LSQR via ``Q`` and
-``Qᴴ``).  These are **Q matrices**, not QGTs.
+``Qᴴ``).  These are **PCT operators**, not QGTs.
 
 Built on NetKet: subclasses :class:`netket.optimizer.LinearOperator` and reuses its
 ``solve``/``__add__``/``__call__``, plus ``convert_tree_to_dense_format`` and
@@ -30,7 +30,7 @@ from netket.optimizer.qgt.common import check_valid_vector_type
 
 
 @struct.dataclass
-class QJacobianDenseT(LinearOperator):
+class PCTJacobianDenseT(LinearOperator):
     """Semi-lazy dense PII ``Q``-matrix as a :class:`LinearOperator`.
 
     Stores the two centered/√-rescaled Jacobians ``O`` and ``A``; ``Q`` itself is only
@@ -62,7 +62,7 @@ class QJacobianDenseT(LinearOperator):
     _params_structure: PyTree = struct.field(pytree_node=False, default=Uninitialized)
 
     @property
-    def H(self) -> "QJacobianDenseT":
+    def H(self) -> "PCTJacobianDenseT":
         """The conjugate-transpose operator ``Qᴴ`` (for CGNE/LSQR-type iterative solvers)."""
         return self.replace(_conj_transpose=not self._conj_transpose)
 
@@ -128,7 +128,7 @@ class QJacobianDenseT(LinearOperator):
 
     def __repr__(self):
         return (
-            f"QJacobianDense(tau={self.tau}, diag_shift={self.diag_shift}, "
+            f"PCTJacobianDense(tau={self.tau}, diag_shift={self.diag_shift}, "
             f"mode={self.mode}{', Hᵀ' if self._conj_transpose else ''})"
         )
 

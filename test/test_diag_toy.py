@@ -1,4 +1,4 @@
-"""Paper Fig. 1 toy benchmark: Ĥ = diag(1, 10, 0) on a 3-dim Hilbert space.
+"""Diagonal toy benchmark: Ĥ = diag(1, 10, 0) on a 3-dim Hilbert space.
 
 Exact linear ansatz (LogStateVector) + FullSumState. PII (τ → E0) is
 gap-insensitive and converges far faster than SR (η = 0.1).
@@ -8,7 +8,7 @@ import numpy as np
 import optax
 import netket as nk
 
-import pii
+import nkpii
 
 
 def _build():
@@ -26,9 +26,9 @@ def test_pii_beats_sr_on_diag_hamiltonian():
     assert hi.n_states == 3
     np.testing.assert_allclose(np.sort(np.linalg.eigvalsh(np.array(H.to_dense()))), [0, 1, 10])
 
-    sr = pii.driver.VMC_PII(H, optax.sgd(0.1), variational_state=_state(hi), diag_shift=0.0,
+    sr = nkpii.driver.VMC_PII(H, optax.sgd(0.1), variational_state=_state(hi), diag_shift=0.0,
                  pii=False, mode="real")
-    pii_drv = pii.driver.VMC_PII(H, optax.sgd(1.0), variational_state=_state(hi), diag_shift=1e-8,
+    pii_drv = nkpii.driver.VMC_PII(H, optax.sgd(1.0), variational_state=_state(hi), diag_shift=1e-8,
                       pii=True, tau=1e-8, mode="real")
 
     sr.run(n_iter=20, show_progress=False)

@@ -2,7 +2,7 @@ r"""Common machinery for the dense and kernel (minPII) PII updates.
 
 Mirrors :mod:`netket._src.ngd.sr_srt_common`: it computes the centered, scaled
 log-:math:`\psi` Jacobian ``O`` exactly as SR does, additionally computes the
-PII ``A`` Jacobian (via :func:`pii.ngd.local_energy.make_local_energy_funs`),
+PII ``A`` Jacobian (via :func:`nkpii.ngd.local_energy.make_local_energy_funs`),
 and dispatches to the dense (``Oᵀ A``, ``P×P``) or kernel/minPII
 (``O Aᵀ``, ``2M×2M``) solver.
 """
@@ -19,9 +19,9 @@ from netket.utils import timing
 from netket.utils.types import Array, PyTree
 from netket.vqs import FullSumState
 
-from pii.ngd.local_energy import make_local_energy_funs
-from pii.ngd.pii_dense import _compute_pii_update_dense
-from pii.ngd.pii_kernel import _compute_minpii_update
+from nkpii.ngd.local_energy import make_local_energy_funs
+from nkpii.ngd.pii_dense import _compute_pii_update_dense
+from nkpii.ngd.pii_kernel import _compute_minpii_update
 
 
 def get_samples_and_pdf(vstate):

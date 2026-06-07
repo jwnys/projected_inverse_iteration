@@ -1,7 +1,7 @@
 r"""Kernel-trick / minPII update (``2M×2M`` push-through form).
 
 Models :func:`netket._src.ngd.srt._compute_srt_update`.  Uses the push-through
-identity (paper Eq. 30, valid for the non-symmetric PII matrices)
+identity (valid for the non-symmetric PII matrices)
 
 .. math::
     (O^T(A - \tau O) + \lambda I_P)^{-1} O^T e
@@ -11,7 +11,7 @@ so we form the ``2M×2M`` kernel :math:`K = A O^T - \tau O O^T + \lambda I`,
 solve :math:`K y = \tfrac{1}{2} e`, and set :math:`\xi = O^T y`.  Cheaper than
 the dense path when ``2M < P``.
 
-SPRING (paper Eq. 37):
+SPRING:
 
 .. math::
     \xi = \mu\,\xi_{k-1} + O^T K^{-1}\big[\tfrac{1}{2} e - \mu (A - \tau O)\,\xi_{k-1}\big].

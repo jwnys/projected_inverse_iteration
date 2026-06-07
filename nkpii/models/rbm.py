@@ -4,7 +4,7 @@ r"""Restricted Boltzmann Machine with real parameters and a complex log-amplitud
 **purely real parameters**: every complex weight/bias is stored as two real arrays (real and
 imaginary part) and combined internally as ``w = w_re + 1j w_im``.  The wavefunction is therefore
 complex while all variational parameters are real — the "real parameters, complex output"
-convention used e.g. by the paper's ViT ansatz (``log Ψ = f_θ + i g_θ``, App. A).
+convention (``log Ψ = f + i g``).
 
 Use it with ``mode='complex'`` (or ``mode=None``, which auto-detects): the Jacobian splits the
 (complex) *output* into real/imaginary parts, but the parameters are not further split, so the

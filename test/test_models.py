@@ -6,7 +6,7 @@ import optax
 import pytest
 import netket as nk
 
-import pii
+import nkpii
 
 from .common import tfim, rel_error
 
@@ -15,7 +15,7 @@ def test_rbm_real_params_complex_output_real_params():
     _, hi, _, _ = tfim()
     vs = nk.vqs.MCState(
         nk.sampler.MetropolisLocal(hi, n_chains=16),
-        pii.models.RBMRealParams(alpha=2), n_samples=256, seed=0,
+        nkpii.models.RBMRealParams(alpha=2), n_samples=256, seed=0,
     )
     # output is complex
     out = vs._apply_fun(vs.variables, hi.all_states()[:4])
@@ -29,9 +29,9 @@ def test_pii_converges_with_rbm_real_params():
     _, hi, H, E0 = tfim()
     vs = nk.vqs.MCState(
         nk.sampler.MetropolisLocal(hi, n_chains=16),
-        pii.models.RBMRealParams(alpha=2), n_samples=2048, seed=0,
+        nkpii.models.RBMRealParams(alpha=2), n_samples=2048, seed=0,
     )
-    d = pii.driver.VMC_PII(H, optax.sgd(1.0), variational_state=vs, diag_shift=0.1, pii=True,
+    d = nkpii.driver.VMC_PII(H, optax.sgd(1.0), variational_state=vs, diag_shift=0.1, pii=True,
                 tau=1.2 * E0)
     assert d.mode == "complex"  # auto-detected from the complex output
     d.run(n_iter=40, show_progress=False)
@@ -40,7 +40,7 @@ def test_pii_converges_with_rbm_real_params():
 
 def test_logstatevector_real_params_complex_output_real_params():
     _, hi, _, _ = tfim()
-    vs = nk.vqs.FullSumState(hi, pii.models.LogStateVectorRealParams(hi), seed=0)
+    vs = nk.vqs.FullSumState(hi, nkpii.models.LogStateVectorRealParams(hi), seed=0)
     # output is complex
     out = vs._apply_fun(vs.variables, hi.all_states()[:4])
     assert np.iscomplexobj(np.asarray(out))
@@ -56,8 +56,8 @@ def test_logstatevector_real_params_complex_output_real_params():
 def test_pii_converges_with_logstatevector_real_params():
     """PII converges with the exact complex-output vector ansatz (FullSum)."""
     _, hi, H, E0 = tfim()
-    vs = nk.vqs.FullSumState(hi, pii.models.LogStateVectorRealParams(hi), seed=0)
-    d = pii.driver.VMC_PII(H, optax.sgd(1.0), variational_state=vs, diag_shift=1e-8, pii=True,
+    vs = nk.vqs.FullSumState(hi, nkpii.models.LogStateVectorRealParams(hi), seed=0)
+    d = nkpii.driver.VMC_PII(H, optax.sgd(1.0), variational_state=vs, diag_shift=1e-8, pii=True,
                 tau=1.2 * E0, mode="complex")
     d.run(n_iter=50, show_progress=False)
     assert rel_error(vs, H, E0) < 1e-4
@@ -67,5 +67,5 @@ def test_logstatevector_real_params_rejects_complex_dtype():
     _, hi, _, _ = tfim()
     with pytest.raises(ValueError, match="real parameters"):
         nk.vqs.FullSumState(
-            hi, pii.models.LogStateVectorRealParams(hi, param_dtype=complex), seed=0
+            hi, nkpii.models.LogStateVectorRealParams(hi, param_dtype=complex), seed=0
         ).parameters

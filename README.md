@@ -1,6 +1,6 @@
 # PII — Projected Inverse Iteration for Neural Quantum States
 
-A standalone package implementing **Projected Inverse Iteration (PII)**, an
+The `nkpii` package implements **Projected Inverse Iteration (PII)**, an
 eigenvalue approach to ground-state computation with neural quantum states,
 built on top of [NetKet](https://netket.org).
 
@@ -8,7 +8,7 @@ PII reframes the ground-state search as an eigenvalue problem and replaces
 Stochastic Reconfiguration's (SR) overlap-matrix preconditioner `S` with
 
 ```
-Q = H − τ S + λ I        (paper Eq. 17/29)
+Q = H − τ S + λ I
 ```
 
 where `H` is the Hamiltonian projected onto the variational tangent space and
@@ -16,23 +16,19 @@ where `H` is the Hamiltonian projected onto the variational tangent space and
 ground-state energy `E0`). Unlike SR, PII is **robust to small spectral gaps**
 and typically converges in far fewer iterations with learning rate `η = 1`.
 
-This implementation aims to stay **as close as possible to the NetKet
-architecture**, for seamless integration — the public API mirrors NetKet
-one-to-one:
+The public API follows NetKet's, so PII drops into an existing NetKet workflow with little
+change. The correspondence is:
 
 | PII | NetKet |
 |---|---|
-| `pii.driver.VMC` (≡ `pii.VMC`) | `netket.driver.VMC` (standard, preconditioner-based) |
-| `pii.driver.VMC_PII` | `netket.driver.VMC_SR` (integrated driver) |
-| `pii.optimizer.PII` | `netket.optimizer.SR` (gradient preconditioner) |
-| `pii.optimizer.q.QJacobian{Dense,PyTree}` | `netket.optimizer.qgt.QGTJacobian{Dense,PyTree}` |
-| `pii.optimizer.solver.*` | `netket.optimizer.solver.*` |
+| `nkpii.driver.VMC` (= `nkpii.VMC`) | `netket.driver.VMC` (standard, preconditioner-based) |
+| `nkpii.driver.VMC_PII` | `netket.driver.VMC_SR` (integrated driver) |
+| `nkpii.optimizer.PII` | `netket.optimizer.SR` (gradient preconditioner) |
+| `nkpii.optimizer.pct.PCTJacobian{Dense,PyTree}` | `netket.optimizer.qgt.QGTJacobian{Dense,PyTree}` |
+| `nkpii.optimizer.solver.*` | `netket.optimizer.solver.*` |
 
-So you can drop PII into any NetKet workflow: use `pii.optimizer.PII` as the
-`preconditioner` of a standard `VMC` driver, exactly as you would `netket.optimizer.SR`.
-
-See the paper: *"Projected Inverse Iteration: An Eigenvalue Approach to
-Ground-State Computation with Neural Quantum States"*.
+For example, use `nkpii.optimizer.PII` as the `preconditioner` of a standard `VMC` driver the same
+way you would `netket.optimizer.SR`.
 
 ## Install
 
@@ -49,45 +45,45 @@ uv pip install -e .
 
 There are two equivalent entry points, mirroring NetKet's two:
 
-### 1. Preconditioner + standard driver (`pii.optimizer.PII` + `pii.driver.VMC`)
+### 1. Preconditioner + standard driver (`nkpii.optimizer.PII` + `nkpii.driver.VMC`)
 
-The NetKet-idiomatic route — `pii.optimizer.PII` is a drop-in replacement for
+The NetKet-idiomatic route — `nkpii.optimizer.PII` is a drop-in replacement for
 `netket.optimizer.SR`:
 
 ```python
 import optax, netket as nk
-import pii
+import nkpii
 
 # ... build hamiltonian H, exact/estimated E0, and a variational state vstate ...
 
-gs = pii.driver.VMC(                 # ≡ pii.VMC ; same as netket.driver.VMC
+gs = nkpii.driver.VMC(                 # ≡ nkpii.VMC ; same as netket.driver.VMC
     H, optax.sgd(1.0),               # PII uses learning rate η = 1
     variational_state=vstate,
-    preconditioner=pii.optimizer.PII(H, tau=1.1 * E0, diag_shift=1e-2),
+    preconditioner=nkpii.optimizer.PII(H, tau=1.1 * E0, diag_shift=1e-2),
 )
 gs.run(n_iter=100)
 ```
 
-`pii.optimizer.PII` accepts `q=` (the `Q`-matrix type — `QJacobianDense` (default) or
-`QJacobianPyTree`) and `solver=` (a linear solver from `pii.optimizer.solver`). For a
+`nkpii.optimizer.PII` accepts `q=` (the PCT operator type — `PCTJacobianDense` (default) or
+`PCTJacobianPyTree`) and `solver=` (a linear solver from `nkpii.optimizer.solver`). For a
 **matrix-free** solve (no dense `Q`), use the iterative solvers — the PII analogue of
 `SR(solver=cg)` (note: `cg` is unavailable here because `Q` is non-symmetric/indefinite,
 so PII provides `gmres`/`bicgstab` instead):
 
 ```python
-pii.optimizer.PII(H, tau=1.1 * E0, diag_shift=1e-2,
-                  q=pii.optimizer.q.QJacobianPyTree,
-                  solver=pii.optimizer.solver.gmres)   # matrix-free
+nkpii.optimizer.PII(H, tau=1.1 * E0, diag_shift=1e-2,
+                  q=nkpii.optimizer.pct.PCTJacobianPyTree,
+                  solver=nkpii.optimizer.solver.gmres)   # matrix-free
 ```
 
-### 2. Integrated driver (`pii.driver.VMC_PII`)
+### 2. Integrated driver (`nkpii.driver.VMC_PII`)
 
-`pii.driver.VMC_PII` is a **drop-in superset** of NetKet's `VMC_SR` (it adds the NTK /
+`nkpii.driver.VMC_PII` is a **drop-in superset** of NetKet's `VMC_SR` (it adds the NTK /
 on-the-fly / SPRING machinery). With `pii=False` it reproduces SR / minSR / on-the-fly SR
 *exactly*; with `pii=True` it runs Projected Inverse Iteration:
 
 ```python
-gs = pii.driver.VMC_PII(
+gs = nkpii.driver.VMC_PII(
     H, optax.sgd(1.0), variational_state=vstate,
     diag_shift=1e-2, pii=True, tau=1.1 * E0,
 )
@@ -104,7 +100,7 @@ gs.run(n_iter=100)
 | `use_ntk` | `True` → kernel trick (minSR / **minPII**, `2M×2M`); `False` → dense (`P×P`) |
 | `on_the_fly` | `True` → matrix-free / lazy NTK (lowest memory) |
 | `momentum` | SPRING / PII-SPRING damping (≈ 0.8) — see the performance note below |
-| `linear_solver` | `(Q, b) -> (x, info)` solver (e.g. `pii.optimizer.solver.penrose_symmetrized_solver`) |
+| `linear_solver` | `(Q, b) -> (x, info)` solver (e.g. `nkpii.optimizer.solver.penrose_symmetrized_solver`) |
 | `chunk_size_bwd` | chunking of the `O` Jacobian / NTK (backward pass) |
 | `chunk_size_dEloc` | chunking of the **local-energy-derivative** (`A`) computation; defaults to `chunk_size_bwd` |
 
@@ -123,7 +119,7 @@ dense PII path.
 ### Solvers
 
 `Q = OᴴA − τOᴴO + λI` is in general **non-symmetric and indefinite**, so
-`pii.optimizer.solver` provides:
+`nkpii.optimizer.solver` provides:
 
 - `pii_default_solver` — direct general-LU (the default; analogue of NetKet's
   `cholesky_with_fallback`, but LU since `Q` is not Hermitian PSD);
@@ -134,35 +130,35 @@ dense PII path.
 
 ### Bundled models
 
-All bundled ansätze have a **complex log-amplitude but real parameters** — matching the paper's
+All bundled ansätze have a **complex log-amplitude but real parameters** — the
 "real parameters, complex output" convention (`log Ψ = f + i g`); use them with `mode="complex"`
 (or `mode=None`, which auto-detects):
 
-- `pii.models.RBMRealParams` — a complex-output RBM (each complex weight stored as a real/imaginary
+- `nkpii.models.RBMRealParams` — a complex-output RBM (each complex weight stored as a real/imaginary
   pair, combined internally).
-- `pii.models.LogStateVectorRealParams` — the exact log-state-vector ansatz (one log-coefficient per
+- `nkpii.models.LogStateVectorRealParams` — the exact log-state-vector ansatz (one log-coefficient per
   basis state), for small toy systems.
-- `pii.models.ViT` — a Vision-Transformer ansatz for 2D spin systems (patched spins, factored
+- `nkpii.models.ViT` — a Vision-Transformer ansatz for 2D spin systems (patched spins, factored
   multi-head attention, `log_cosh` complex output), after Viteritti, Rende & Becca,
   [*Phys. Rev. Lett.* **130**, 236401 (2023)](https://doi.org/10.1103/PhysRevLett.130.236401).
 
 ## Examples
 
 ```bash
-python examples/diag_hamiltonian_fig1.py   # paper Fig. 1 toy benchmark
+python examples/diag_hamiltonian_fig1.py   # diagonal toy Hamiltonian
 python examples/compare_sr_pii_tfim.py     # SR vs PII on a small TFIM chain
 python examples/compare_implementations.py      # VMC+PII vs VMC_PII vs netket VMC_SR (consistency)
 ```
 
-- `diag_hamiltonian_fig1.py` reproduces Figure 1: the toy Hamiltonian
+- `diag_hamiltonian_fig1.py` uses the toy Hamiltonian
   `Ĥ = diag(1, 10, 0)` (dim-3 Hilbert space, exact `LogStateVector` ansatz),
   showing PII converging almost immediately while SR oscillates slowly.
 - `compare_sr_pii_tfim.py` compares SR and every PII variant on a small,
   exactly-solvable 1D transverse-field Ising chain, all starting from identical
   parameters.
-- `compare_implementations.py` shows the two entry points agree: `pii.driver.VMC` +
-  `pii.optimizer.PII` (with `QJacobianDense`, `QJacobianPyTree`, and the matrix-free
-  `gmres`) gives the same trajectory as the integrated `pii.driver.VMC_PII`, and the
+- `compare_implementations.py` shows the two entry points agree: `nkpii.driver.VMC` +
+  `nkpii.optimizer.PII` (with `PCTJacobianDense`, `PCTJacobianPyTree`, and the matrix-free
+  `gmres`) gives the same trajectory as the integrated `nkpii.driver.VMC_PII`, and the
   SR path matches NetKet's `VMC_SR`.
 
 ## Benchmarks
@@ -190,27 +186,27 @@ agreement of the dense / minPII / on-the-fly PII paths, the preconditioner path
 (`VMC` + `PII`) against the integrated `VMC_PII`, convergence of every variant
 (incl. PII-SPRING) and `FullSumState`, the local-energy derivative against finite
 differences, chunk-size invariance, device-count-invariant results under sharding,
-and the SR↔PII factor-of-2 / `η=1` / SPRING conventions.
+and the SR/PII factor-of-2, `η=1`, and SPRING conventions.
 
 ## Layout
 
 ```
-pii/
-  driver/                  # ↔ netket.driver
-    vmc.py                 # pii.driver.VMC  — standard preconditioner-based driver
-    vmc_pii.py             # pii.driver.VMC_PII — integrated driver (superset of VMC_SR)
-  optimizer/               # ↔ netket.optimizer
-    preconditioner.py      # pii.optimizer.PII  — preconditioner (↔ SR)
-    q/                     # Q-matrix linear operators (↔ netket.optimizer.qgt)
-    solver/                # linear solvers (↔ netket.optimizer.solver)
-  ngd/                     # ↔ netket._src.ngd — the dense / minPII / on-the-fly kernels
+nkpii/
+  driver/                  # like netket.driver
+    vmc.py                 # nkpii.driver.VMC  — standard preconditioner-based driver
+    vmc_pii.py             # nkpii.driver.VMC_PII — integrated driver (superset of VMC_SR)
+  optimizer/               # like netket.optimizer
+    preconditioner.py      # nkpii.optimizer.PII  — preconditioner (like SR)
+    pct/                   # Projected Characteristic Tensor operators (like netket.optimizer.qgt)
+    solver/                # linear solvers (like netket.optimizer.solver)
+  ngd/                     # the dense / minPII / on-the-fly kernels
     local_energy.py        # differentiable E_L and the A-function (E_L + sg(E_L)·logψ)
     common.py              # O & A Jacobians, dispatch to dense / minPII
     pii_dense.py           # dense:  Q = H − τS + λI            (P×P)
     pii_kernel.py          # minPII: K = A Oᵀ − τ O Oᵀ + λI     (2M×2M, push-through)
     pii_ntk.py             # two-function cross-NTK for the on-the-fly A Oᵀ term
     pii_onthefly.py        # matrix-free minPII
-  models/                  # ↔ netket.models — one ansatz per file
+  models/                  # like netket.models — one ansatz per file
     rbm.py                 # RBMRealParams
     log_state_vector.py    # LogStateVectorRealParams
     vit.py                 # ViT (Vision Transformer, PRL 130, 236401)

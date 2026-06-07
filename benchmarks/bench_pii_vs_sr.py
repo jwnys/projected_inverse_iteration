@@ -1,13 +1,12 @@
 r"""Benchmark: how much slower is one PII step than one SR step, and why?
 
-Expectation (user): PII should be only a small constant (~3-5×) slower than SR per step. SR needs
-local-energy **values** ``E_L`` (forward passes over the ``n_conn`` connected configs); PII
-additionally needs local-energy **gradients** (the ``A``-Jacobian of ``f_A = E_L + sg(E_L)·logψ``).
-A backward pass is ~3-4× a forward pass, and **both** methods already pay the ``n_conn`` factor, so
-PII's *inherent* cost should be ~3-5× SR — not the ~400× seen in the wall-time example.
+PII should be only a small constant (~3-5×) slower than SR per step. SR needs local-energy values
+``E_L`` (forward passes over the ``n_conn`` connected configs); PII additionally needs local-energy
+gradients (the ``A``-Jacobian of ``f_A = E_L + sg(E_L)·logψ``). A backward pass is ~3-4× a forward
+pass, and both methods already pay the ``n_conn`` factor, so PII's inherent cost should be ~3-5× SR.
 
-This script (STEP 1 — measurement only, it changes nothing in ``pii/``) separates the **inherent
-compute** from a **per-step recompilation artifact**, by timing the jitted kernels directly:
+This script separates the inherent compute from a per-step recompilation artifact by timing the
+jitted kernels directly:
 
 - ``t_fwd``  : a forward pass ``apply(params, samples)``;
 - ``t_bwd``  : one O-Jacobian ``nkjax.jacobian(apply, ...)``  → report ``t_bwd/t_fwd`` (model reference);
@@ -37,9 +36,9 @@ import matplotlib.pyplot as plt
 from netket._src.ngd.sr_srt_common import sr
 from netket.optimizer.solver import cholesky_with_fallback
 
-from pii.ngd.common import _pii_common, get_samples_and_pdf
-from pii.ngd.local_energy import make_local_energy_funs
-from pii.optimizer.solver import pii_default_solver
+from nkpii.ngd.common import _pii_common, get_samples_and_pdf
+from nkpii.ngd.local_energy import make_local_energy_funs
+from nkpii.optimizer.solver import pii_default_solver
 
 HERE = Path(__file__).parent
 

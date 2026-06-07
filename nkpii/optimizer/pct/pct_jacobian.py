@@ -1,9 +1,9 @@
-r"""Constructors for the PII ``Q``-matrix operators (analogue of NetKet's ``qgt_jacobian.py``).
+r"""Constructors for the PII PCT operators (analogue of NetKet's ``qgt_jacobian.py``).
 
-``QJacobianDense(vstate, hamiltonian, *, tau, ...)`` and ``QJacobianPyTree(...)`` build the
+``PCTJacobianDense(vstate, hamiltonian, *, tau, ...)`` and ``PCTJacobianPyTree(...)`` build the
 two centered/√-rescaled Jacobians ``O`` (of ``logψ``) and ``A`` (of ``f_A``) — using the
 *same* ``nkjax.jacobian`` machinery and conventions as NetKet's QGT and the existing dense
-PII path — and return a :class:`QJacobianDenseT` / :class:`QJacobianPyTreeT` that lazily
+PII path — and return a :class:`PCTJacobianDenseT` / :class:`PCTJacobianPyTreeT` that lazily
 represents ``Q = OᴴA − τ OᴴO (+ diag_shift·I)``.
 """
 
@@ -12,14 +12,14 @@ import jax
 from netket import jax as nkjax
 from netket.utils import timing
 
-from pii.ngd.local_energy import make_local_energy_funs
+from nkpii.ngd.local_energy import make_local_energy_funs
 
-from .q_jacobian_dense import QJacobianDenseT
-from .q_jacobian_pytree import QJacobianPyTreeT
+from .pct_jacobian_dense import PCTJacobianDenseT
+from .pct_jacobian_pytree import PCTJacobianPyTreeT
 
 
 @timing.timed
-def QJacobian_DefaultConstructor(
+def PCTJacobian_DefaultConstructor(
     apply_fun,
     f_A,
     parameters,
@@ -35,7 +35,7 @@ def QJacobian_DefaultConstructor(
     chunk_size: int | None = None,
     chunk_size_dEloc: int | None = None,
 ):
-    """Build a :class:`QJacobianDenseT` / :class:`QJacobianPyTreeT` from raw pieces.
+    """Build a :class:`PCTJacobianDenseT` / :class:`PCTJacobianPyTreeT` from raw pieces.
 
     Mirrors :func:`netket.optimizer.qgt.QGTJacobian_DefaultConstructor`, but builds **two**
     Jacobians (``O`` from ``apply_fun``, ``A`` from ``f_A``) and stores the shift ``tau``.
@@ -49,7 +49,7 @@ def QJacobian_DefaultConstructor(
         )
     if mode not in ("real", "complex", "holomorphic"):
         raise ValueError(
-            f"QJacobian supports mode='real'/'complex'/'holomorphic', got {mode!r}."
+            f"PCTJacobian supports mode='real'/'complex'/'holomorphic', got {mode!r}."
         )
 
     if pdf is not None:
@@ -79,7 +79,7 @@ def QJacobian_DefaultConstructor(
         lambda x: jax.ShapeDtypeStruct(x.shape, x.dtype), parameters
     )
 
-    QT = QJacobianDenseT if dense else QJacobianPyTreeT
+    QT = PCTJacobianDenseT if dense else PCTJacobianPyTreeT
     return QT(
         O=O,
         A=A,
@@ -105,7 +105,7 @@ def _vstate_samples_pdf(vstate, chunk_size):
     return samples, pdf, chunk_size
 
 
-def QJacobianDense(
+def PCTJacobianDense(
     vstate,
     hamiltonian,
     *,
@@ -115,8 +115,8 @@ def QJacobianDense(
     diag_shift: float | None = 0.0,
     chunk_size: int | None = None,
     chunk_size_dEloc: int | None = None,
-) -> QJacobianDenseT:
-    r"""Semi-lazy **dense** PII ``Q``-matrix ``Q = OᴴA − τ OᴴO (+ diag_shift·I)``.
+) -> PCTJacobianDenseT:
+    r"""Semi-lazy **dense** PII PCT operator ``Q = OᴴA − τ OᴴO (+ diag_shift·I)``.
 
     The two Jacobians ``O`` (of ``logψ``) and ``A`` (of ``f_A = E_L + sg(E_L)logψ``) are
     computed and stored densely; ``Q`` is materialized only by ``.to_dense()``. ``Q @ v`` and
@@ -133,7 +133,7 @@ def QJacobianDense(
     """
     _, f_A = make_local_energy_funs(vstate, hamiltonian)
     samples, pdf, chunk_size = _vstate_samples_pdf(vstate, chunk_size)
-    return QJacobian_DefaultConstructor(
+    return PCTJacobian_DefaultConstructor(
         vstate._apply_fun,
         f_A,
         vstate.parameters,
@@ -150,7 +150,7 @@ def QJacobianDense(
     )
 
 
-def QJacobianPyTree(
+def PCTJacobianPyTree(
     vstate,
     hamiltonian,
     *,
@@ -160,15 +160,15 @@ def QJacobianPyTree(
     diag_shift: float | None = 0.0,
     chunk_size: int | None = None,
     chunk_size_dEloc: int | None = None,
-) -> QJacobianPyTreeT:
-    r"""Semi-lazy **PyTree** PII ``Q``-matrix (Jacobians stored as PyTrees).
+) -> PCTJacobianPyTreeT:
+    r"""Semi-lazy **PyTree** PII PCT operator (Jacobians stored as PyTrees).
 
-    Same as :func:`QJacobianDense` but ``O`` and ``A`` are kept as PyTrees; ``Q`` is
+    Same as :func:`PCTJacobianDense` but ``O`` and ``A`` are kept as PyTrees; ``Q`` is
     assembled only by ``.to_dense()``.
     """
     _, f_A = make_local_energy_funs(vstate, hamiltonian)
     samples, pdf, chunk_size = _vstate_samples_pdf(vstate, chunk_size)
-    return QJacobian_DefaultConstructor(
+    return PCTJacobian_DefaultConstructor(
         vstate._apply_fun,
         f_A,
         vstate.parameters,

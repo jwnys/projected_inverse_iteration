@@ -5,10 +5,10 @@ diagonalize exactly, so the relative energy error ``|(E − E0)/E0|`` against th
 true ground state can be tracked every iteration.
 
 All methods start from *identical* parameters (see ``init_params``) for a fair
-comparison, and the script exercises every variant of :class:`pii.driver.VMC_PII`:
+comparison, and the script exercises every variant of :class:`nkpii.driver.VMC_PII`:
 
 - **SR / minSR**            (``pii=False``) -- Stochastic Reconfiguration; its step
-  size is capped by the critical value ``η < 1/Γ`` (paper Theorem 2).
+  size is capped by the critical value ``η < 1/Γ``.
 - **PII dense / minPII / minPII on-the-fly** (``pii=True``) -- Projected Inverse
   Iteration at its natural ``η = 1``. The three are mathematically identical and
   overlap.
@@ -18,7 +18,7 @@ comparison, and the script exercises every variant of :class:`pii.driver.VMC_PII
 With Monte Carlo, PII drives the energy to ~machine precision while SR is limited
 to a higher (sampling-noise) floor; the FullSum runs confirm both are exact in the
 noise-free limit. This system is tiny, so it demonstrates correctness and the
-SR-vs-PII contrast rather than the large-system, gap-closing regime of the paper.
+SR-vs-PII contrast rather than a large-system, gap-closing regime.
 
 Run with::
 
@@ -36,7 +36,7 @@ import optax
 import netket as nk
 import matplotlib.pyplot as plt
 
-import pii
+import nkpii
 
 HERE = Path(__file__).parent
 
@@ -58,8 +58,8 @@ gap = E1 - E0
 Gamma = Emax - E0  # spectral spread
 tau = E0 - 0.1 * gap  # undershoot by fraction of the gap
 
-# SR has a hard step-size threshold η < 1/Γ = 1/(Emax−E0): for η ≥ 1/Γ it diverges
-# (paper Theorem 2). PII has no such limit and uses η = 1.
+# SR has a hard step-size threshold η < 1/Γ = 1/(Emax−E0): for η ≥ 1/Γ it diverges.
+# PII has no such limit and uses η = 1.
 eta_sr_max = 1.0 / Gamma
 print(f"TFIM {g.extent}, h/J={h};  E0 = {E0:.6f}, gap Δ = {gap:.4f}, "
       f"spread Γ = {Gamma:.4f},  τ = {tau:.6f}")
@@ -71,8 +71,7 @@ print(f"SR critical learning rate  η_max = 1/Γ = {eta_sr_max:.4g}  "
 lr_sr = eta_sr_max
 diag_shift_sr = 1e-4
 # PII's natural learning rate is η = 1: the update ξ = Q⁻¹(½∇E) already *is* the
-# (Galerkin-projected) inverse-iteration step (paper Eq. 5), so η=1 applies it
-# exactly.
+# (Galerkin-projected) inverse-iteration step, so η=1 applies it exactly.
 lr_pii = 1.0
 diag_shift_pii = 1e-4
 
@@ -135,7 +134,7 @@ runs = {
 # climb out of (the transient energy "bump"). A generic start removes that.
 # model = nk.models.RBM(alpha=1, param_dtype=complex)
 _init = normal(stddev=0.3)
-model = pii.models.RBMRealParams(
+model = nkpii.models.RBMRealParams(
     alpha=1, param_dtype=jnp.float64,
     kernel_init=_init, #hidden_bias_init=_init, visible_bias_init=_init,
 )
@@ -155,7 +154,7 @@ for label, (lr, kw) in runs.items():
     opt = optax.sgd(lr)
     # RBMRealParams has a complex log-amplitude (real params), so use mode="complex".
     # (mode="real" would truncate the phase and is only for real-output ansätze.)
-    driver = pii.driver.VMC_PII(H, opt, variational_state=vstate, **kw)
+    driver = nkpii.driver.VMC_PII(H, opt, variational_state=vstate, **kw)
     log = nk.logging.RuntimeLog()
     # warm up to trigger JIT compilation (not timed, not logged), then reset to the
     # shared start so the comparison still begins from identical parameters.

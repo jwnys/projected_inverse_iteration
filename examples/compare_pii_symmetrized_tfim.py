@@ -1,7 +1,7 @@
 r"""Compare **unsymmetrized vs symmetrized PII** on a small TFIM (Monte Carlo + FullSum).
 
 Same exactly-solvable periodic TFIM chain, model, starting parameters and PII
-hyperparameters as :mod:`pii.examples.compare_sr_pii_tfim`, so the only thing that
+hyperparameters as :mod:`nkpii.examples.compare_sr_pii_tfim`, so the only thing that
 changes between the two PII variants is the *linear solver*:
 
 - **PII** (unsymmetrized) solves the (generally non-symmetric) dense system
@@ -11,7 +11,7 @@ changes between the two PII variants is the *linear solver*:
   ``ξ = (QᴴQ + λ·I)⁻¹ Qᴴ (½∇E)`` with the *unregularized* ``Q = H − τS`` — i.e.
   the regularized pseudo-inverse of ``Q``. This requires the driver ``diag_shift=0``
   (the regularization is carried by the solver's ``diag_shift``). See
-  :func:`pii.optimizer.solver.penrose_symmetrized_solver`. Note that ``diag_shift_pii_symm`` has **energy²
+  :func:`nkpii.optimizer.solver.penrose_symmetrized_solver`. Note that ``diag_shift_pii_symm`` has **energy²
   units** and — because forming ``QᴴQ`` squares the (large) condition number of the
   rank-deficient ``Q`` — empirically needs to be ``O(0.1–1)`` here, *far* larger than
   ``diag_shift_pii`` (the energy-unit heuristic gives only the dimension, not the
@@ -38,7 +38,7 @@ import optax
 import netket as nk
 import matplotlib.pyplot as plt
 
-import pii
+import nkpii
 
 HERE = Path(__file__).parent
 
@@ -80,8 +80,8 @@ print(f"PII η = {lr_pii};  diag_shift (unsym) = {diag_shift_pii};  "
 # and FullSum runs. NOTE: the driver diag_shift must be 0 for these runs (the
 # regularization is carried by the solver's diag_shift here).
 # note: the default solver is now Cholesky!
-sym_solver = partial(pii.optimizer.solver.penrose_symmetrized_solver, diag_shift=diag_shift_pii_symm)
-# sym_solver = partial(pii.optimizer.solver.naive_symmetrized_solver, diag_shift=diag_shift_pii)
+sym_solver = partial(nkpii.optimizer.solver.penrose_symmetrized_solver, diag_shift=diag_shift_pii_symm)
+# sym_solver = partial(nkpii.optimizer.solver.naive_symmetrized_solver, diag_shift=diag_shift_pii)
 
 runs = {
     "PII symmetrized FullSum": (
@@ -106,11 +106,11 @@ runs = {
 # One shared model + identical starting parameters used by *every* method (same init
 # as compare_sr_pii_tfim.py: stddev 0.3 to avoid the special |+x⟩^N low-energy start).
 _init = normal(stddev=0.3)
-model = pii.models.RBMRealParams(
+model = nkpii.models.RBMRealParams(
     alpha=1, param_dtype=jnp.float64,
     kernel_init=_init, # hidden_bias_init=_init, visible_bias_init=_init,
 )
-# model = pii.models.LogStateVectorRealParams(
+# model = nkpii.models.LogStateVectorRealParams(
 #     hi, param_dtype=jnp.float64,
 # )
 print("Model = ", model)
@@ -129,7 +129,7 @@ for label, (lr, kw) in runs.items():
     vstate.parameters = init_params  # identical starting parameters for every method
     opt = optax.sgd(lr)
     # RBMRealParams has a complex log-amplitude (real params), so use mode="complex".
-    driver = pii.driver.VMC_PII(H, opt, variational_state=vstate, **kw)
+    driver = nkpii.driver.VMC_PII(H, opt, variational_state=vstate, **kw)
     log = nk.logging.RuntimeLog()
     # warm up to trigger JIT compilation (not timed, not logged), then reset to the
     # shared start so the comparison still begins from identical parameters.

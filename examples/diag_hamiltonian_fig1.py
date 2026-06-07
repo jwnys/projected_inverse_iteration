@@ -1,23 +1,23 @@
-r"""Reproduce Figure 1 of the paper: the toy benchmark ``Ĥ = diag(1, 10, 0)``.
+r"""Diagonal toy benchmark ``Ĥ = diag(1, 10, 0)``.
 
-This is the minimal illustrative example: a 3-dimensional Hilbert space with an
+A minimal illustrative example: a 3-dimensional Hilbert space with an
 **exact, full** state-vector ansatz on the sphere ``S``. We use
 :class:`netket.models.LogStateVector` (one free parameter per basis amplitude)
 and a :class:`netket.vqs.FullSumState`, so the tangent space spans the whole
 Hilbert space and the Galerkin projection is exact.
 
 The Hamiltonian has eigenvalues ``{E0, E1, Emax} = {0, 1, 10}`` so the spectral
-gap is ``Δ = 1`` and the spread is ``Γ = 10`` (the ``a = 1`` case of the paper).
+gap is ``Δ = 1`` and the spread is ``Γ = 10``.
 
 - **PII** (``τ → E0 = 0``) converges almost immediately and is gap-insensitive.
 - **SR** (``η = 0.1``) converges slowly with oscillating iterates because of the
   large eigenvalue spread and small gap.
 
-Note: NetKet ansätze parametrize the **log**-amplitude, whereas Fig. 1 uses a
-*linear* state vector. The PII update here is therefore the inverse-iteration
-step pulled back through the (nonlinear) ``ψ = exp(logψ)`` map, so convergence is
-extremely fast and gap-insensitive but not literally a single step as in the
-linear-ansatz figure. The qualitative SR-vs-PII contrast is reproduced exactly.
+Note: NetKet ansätze parametrize the **log**-amplitude, whereas a linear state
+vector would be the direct choice here. The PII update is therefore the
+inverse-iteration step pulled back through the (nonlinear) ``ψ = exp(logψ)`` map,
+so convergence is extremely fast and gap-insensitive but not literally a single
+step. The qualitative SR-vs-PII contrast is the same either way.
 
 Run with::
 
@@ -31,7 +31,7 @@ import optax
 import netket as nk
 import matplotlib.pyplot as plt
 
-import pii
+import nkpii
 
 HERE = Path(__file__).parent
 
@@ -45,12 +45,12 @@ H = nk.operator.LocalOperator(hi, operators=[np.diag([1.0, 10.0, 0.0])], acting_
 
 # LogStateVector: every basis amplitude is a free (real) parameter -> exact ansatz.
 # Both drivers start from the same state (same seed).
-sr = pii.driver.VMC_PII(
+sr = nkpii.driver.VMC_PII(
     H, optax.sgd(0.1),
     variational_state=nk.vqs.FullSumState(hi, nk.models.LogStateVector(hi, param_dtype=float), seed=SEED),
     diag_shift=0.0, pii=False,
 )
-pii_drv = pii.driver.VMC_PII(
+pii_drv = nkpii.driver.VMC_PII(
     H, optax.sgd(1.0),
     variational_state=nk.vqs.FullSumState(hi, nk.models.LogStateVector(hi, param_dtype=float), seed=SEED),
     diag_shift=1e-8, pii=True, tau=1e-8,

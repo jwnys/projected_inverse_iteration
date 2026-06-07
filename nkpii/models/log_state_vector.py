@@ -1,9 +1,9 @@
 r"""Exact log-state-vector ansatz with real parameters and a complex log-amplitude.
 
-:class:`LogStateVectorRealParams` applies the real-parameter trick of :class:`pii.models.RBMRealParams`
+:class:`LogStateVectorRealParams` applies the real-parameter trick of :class:`nkpii.models.RBMRealParams`
 to NetKet's exact :class:`netket.models.LogStateVector` (one log-coefficient per basis state): a
 **linear/exact** ansatz with a **complex log-amplitude** and **real parameters**, useful for testing
-the PII machinery on a full state vector (as in the paper's Fig. 1 toy) with a sign/phase structure.
+the PII machinery on a full state vector with a sign/phase structure.
 
 Use it with ``mode='complex'`` (the output log-amplitude is complex; the parameters are not split
 further, so the update is a single real vector of length ``P``).

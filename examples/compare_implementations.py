@@ -3,12 +3,12 @@ r"""Consistency of PII's two entry points (and PII vs SR) — the NetKet-paralle
 PII mirrors NetKet's architecture, so there are two equivalent ways to run it, exactly as
 NetKet offers ``VMC`` + ``SR`` and the integrated ``VMC_SR``:
 
-1. **Preconditioner + standard driver** — ``pii.driver.VMC`` (≡ ``netket.driver.VMC``) with
-   ``pii.optimizer.PII`` as the ``preconditioner`` (the analogue of ``netket.optimizer.SR``).
-   The ``Q``-matrix can be ``QJacobianDense`` or ``QJacobianPyTree``, and the linear solve can be
+1. **Preconditioner + standard driver** — ``nkpii.driver.VMC`` (≡ ``netket.driver.VMC``) with
+   ``nkpii.optimizer.PII`` as the ``preconditioner`` (the analogue of ``netket.optimizer.SR``).
+   The ``Q``-matrix can be ``PCTJacobianDense`` or ``PCTJacobianPyTree``, and the linear solve can be
    the direct default or a **matrix-free** ``gmres`` (the analogue of ``SR(solver=cg)`` — there is
    no ``cg`` for PII because ``Q`` is non-symmetric/indefinite).
-2. **Integrated driver** — ``pii.driver.VMC_PII`` (≡ ``netket.driver.VMC_SR``) with ``pii=True``.
+2. **Integrated driver** — ``nkpii.driver.VMC_PII`` (≡ ``netket.driver.VMC_SR``) with ``pii=True``.
 
 This script runs all of them on the same small, exactly-solvable TFIM as ``compare_sr_pii_tfim.py``
 (``FullSumState``, so every run is deterministic), from *identical* initial parameters, and
@@ -37,7 +37,7 @@ import netket as nk
 import scipy.sparse.linalg as sla
 import matplotlib.pyplot as plt
 
-import pii
+import nkpii
 
 HERE = Path(__file__).parent
 
@@ -57,7 +57,7 @@ gap = E1 - E0
 Gamma = Emax - E0  # spectral spread
 tau = E0 - 0.1 * gap  # undershoot by a fraction of the gap
 
-# SR has a hard step-size threshold η < 1/Γ (paper Theorem 2); PII's natural rate is η = 1.
+# SR has a hard step-size threshold η < 1/Γ; PII's natural rate is η = 1.
 eta_sr_max = 1.0 / Gamma
 lr_sr = eta_sr_max
 lr_pii = 1.0
@@ -77,31 +77,31 @@ print(f"TFIM chain L={L}, h/J={h};  E0 = {E0:.6f}, gap Δ = {gap:.4f}, "
 # One shared model + one set of starting parameters used by *every* method, so the comparison
 # starts from an identical state (a larger init stddev than the default avoids the uniform-state
 # transient; see compare_sr_pii_tfim.py). mode is auto-detected ('complex' for RBMRealParams).
-model = pii.models.RBMRealParams(alpha=1, param_dtype=jnp.float64, kernel_init=normal(stddev=0.3))
+model = nkpii.models.RBMRealParams(alpha=1, param_dtype=jnp.float64, kernel_init=normal(stddev=0.3))
 init_params = nk.vqs.FullSumState(hi, model, seed=0).parameters
 
 
 # --- builders: each returns a configured driver for a given variational state ---------------
-def vmc_pii(vstate, q=pii.optimizer.q.QJacobianDense, solver=None):
-    """`pii.driver.VMC` + `pii.optimizer.PII` (the preconditioner route)."""
+def vmc_pii(vstate, q=nkpii.optimizer.pct.PCTJacobianDense, solver=None):
+    """`nkpii.driver.VMC` + `nkpii.optimizer.PII` (the preconditioner route)."""
     kw = {} if solver is None else {"solver": solver}
-    return pii.driver.VMC(
+    return nkpii.driver.VMC(
         H, optax.sgd(lr_pii), variational_state=vstate,
-        preconditioner=pii.optimizer.PII(H, q=q, tau=tau, diag_shift=diag_shift_pii, **kw),
+        preconditioner=nkpii.optimizer.PII(H, q=q, tau=tau, diag_shift=diag_shift_pii, **kw),
     )
 
 
 def vmc_pii_integrated(vstate):
-    """`pii.driver.VMC_PII` (the integrated driver)."""
-    return pii.driver.VMC_PII(
+    """`nkpii.driver.VMC_PII` (the integrated driver)."""
+    return nkpii.driver.VMC_PII(
         H, optax.sgd(lr_pii), variational_state=vstate,
         diag_shift=diag_shift_pii, pii=True, tau=tau, use_ntk=False,
     )
 
 
 def vmc_sr(vstate):
-    """`pii.driver.VMC` + `netket.optimizer.SR` (the preconditioner route, SR)."""
-    return pii.driver.VMC(
+    """`nkpii.driver.VMC` + `netket.optimizer.SR` (the preconditioner route, SR)."""
+    return nkpii.driver.VMC(
         H, optax.sgd(lr_sr), variational_state=vstate,
         preconditioner=nk.optimizer.SR(
             qgt=nk.optimizer.qgt.QGTJacobianDense, solver=sr_solver, diag_shift=diag_shift_sr
@@ -119,10 +119,10 @@ def vmc_sr_integrated(vstate):
 
 # label -> builder(vstate) -> driver.  PII family first (solid), SR family second (dashed).
 runs = {
-    "PII  VMC + PII(QJacobianDense)":     vmc_pii,
-    "PII  VMC + PII(QJacobianPyTree)":    lambda vs: vmc_pii(vs, q=pii.optimizer.q.QJacobianPyTree),
+    "PII  VMC + PII(PCTJacobianDense)":     vmc_pii,
+    "PII  VMC + PII(PCTJacobianPyTree)":    lambda vs: vmc_pii(vs, q=nkpii.optimizer.pct.PCTJacobianPyTree),
     "PII  VMC + PII(gmres, matrix-free)": lambda vs: vmc_pii(
-        vs, solver=pii.optimizer.solver.gmres(tol=1e-10, restart=200, maxiter=4)),
+        vs, solver=nkpii.optimizer.solver.gmres(tol=1e-10, restart=200, maxiter=4)),
     "PII  VMC_PII (integrated)":          vmc_pii_integrated,
     "SR   VMC + nk.optimizer.SR":         vmc_sr,
     "SR   VMC_SR (NetKet, integrated)":   vmc_sr_integrated,
@@ -162,7 +162,7 @@ print("OK: the 4 PII paths coincide, and the 2 SR paths coincide.")
 
 # Plot the relative energy error against two x-axes (iteration and wall time). Convention:
 # PII family solid, SR family dashed; the coinciding curves overlap, so the *integrated*
-# reference drivers (pii.driver.VMC_PII and NetKet's nk.driver.VMC_SR) get markers — you can
+# reference drivers (nkpii.driver.VMC_PII and NetKet's nk.driver.VMC_SR) get markers — you can
 # see them sit exactly on top of the preconditioner-route curves.
 _palette = plt.cm.tab10.colors
 colors = {label: _palette[i % len(_palette)] for i, label in enumerate(results)}

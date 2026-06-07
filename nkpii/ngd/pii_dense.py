@@ -9,11 +9,10 @@ in complex mode, ``[M, P]`` in real mode), it forms
 
 and solves :math:`(H - \tau S + \lambda I)\,\xi = \tfrac{1}{2}\nabla E`.
 
-The **factor 1/2** on the right-hand side is essential: NetKet's convention gives
+The factor 1/2 on the right-hand side is essential: NetKet's convention gives
 ``O_Lᵀ dv = ∇E`` (the full gradient, the factor 2 in ``dv`` already turned the
-covariance into the gradient), while PII solves ``Q ξ = ½∇E`` (paper Eq. 5 /
-Alg. 1 line 6).  Note ``Q`` is only asymptotically Hermitian, so a general
-(non-Cholesky) solver must be used.
+covariance into the gradient), while PII solves ``Q ξ = ½∇E``. Note ``Q`` is only
+asymptotically Hermitian, so a general (non-Cholesky) solver must be used.
 """
 
 from collections.abc import Callable
@@ -48,8 +47,8 @@ def _compute_pii_update_dense(
     H = O_L.T @ A_L
     grad = O_L.T @ dv  # = ∇E (factor 2 already in dv)
 
-    # rhs = ½∇E (+ SPRING anchor). See paper Eq. 36: the dense SPRING update
-    # simplifies to ξ = (H - τS + λI)⁻¹ (½∇E + λμ ξ_{k-1}).
+    # rhs = ½∇E (+ SPRING anchor). The dense SPRING update simplifies to
+    # ξ = (H - τS + λI)⁻¹ (½∇E + λμ ξ_{k-1}).
     rhs = 0.5 * grad
     if momentum is not None:
         rhs = rhs + diag_shift * momentum * old_updates
