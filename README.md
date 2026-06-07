@@ -128,20 +128,6 @@ dense PII path.
 - `naive_symmetrized_solver` — solves the (indefinite) Hermitian part `½(Q+Qᴴ)`;
 - `gmres`, `bicgstab` — matrix-free iterative solvers (no `cg`: `Q` is not PSD).
 
-### Bundled models
-
-All bundled ansätze have a **complex log-amplitude but real parameters** — the
-"real parameters, complex output" convention (`log Ψ = f + i g`); use them with `mode="complex"`
-(or `mode=None`, which auto-detects):
-
-- `nkpii.models.RBMRealParams` — a complex-output RBM (each complex weight stored as a real/imaginary
-  pair, combined internally).
-- `nkpii.models.LogStateVectorRealParams` — the exact log-state-vector ansatz (one log-coefficient per
-  basis state), for small toy systems.
-- `nkpii.models.ViT` — a Vision-Transformer ansatz for 2D spin systems (patched spins, factored
-  multi-head attention, `log_cosh` complex output), after Viteritti, Rende & Becca,
-  [*Phys. Rev. Lett.* **130**, 236401 (2023)](https://doi.org/10.1103/PhysRevLett.130.236401).
-
 ## Examples
 
 ```bash
