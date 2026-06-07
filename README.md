@@ -145,9 +145,10 @@ All bundled ansätze have a **complex log-amplitude but real parameters** — th
 ## Examples
 
 ```bash
-python examples/diag_hamiltonian_fig1.py   # diagonal toy Hamiltonian
-python examples/compare_sr_pii_tfim.py     # SR vs PII on a small TFIM chain
+python examples/diag_hamiltonian_fig1.py        # diagonal toy Hamiltonian
+python examples/compare_sr_pii_tfim.py          # SR vs PII on a small TFIM chain
 python examples/compare_implementations.py      # VMC+PII vs VMC_PII vs netket VMC_SR (consistency)
+python examples/compare_pii_symmetrized_tfim.py # unsymmetrized vs symmetrized PII solvers
 ```
 
 - `diag_hamiltonian_fig1.py` uses the toy Hamiltonian
@@ -160,6 +161,9 @@ python examples/compare_implementations.py      # VMC+PII vs VMC_PII vs netket V
   `nkpii.optimizer.PII` (with `PCTJacobianDense`, `PCTJacobianPyTree`, and the matrix-free
   `gmres`) gives the same trajectory as the integrated `nkpii.driver.VMC_PII`, and the
   SR path matches NetKet's `VMC_SR`.
+- `compare_pii_symmetrized_tfim.py` compares standard PII (general LU on `Q ξ = ½∇E`) with the
+  symmetrized solvers (the regularized pseudo-inverse `(QᴴQ + λI)⁻¹Qᴴ`), with Monte Carlo and
+  FullSum references.
 
 ## Benchmarks
 
