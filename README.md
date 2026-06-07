@@ -2,7 +2,7 @@
 
 The `nkpii` package implements **Projected Inverse Iteration (PII)**, an
 eigenvalue approach to ground-state computation with neural quantum states,
-built on top of [NetKet](https://netket.org).
+built on top of [NetKet](https://www.netket.org/).
 
 PII reframes the ground-state search as an eigenvalue problem and replaces
 Stochastic Reconfiguration's (SR) overlap-matrix preconditioner `S` with
