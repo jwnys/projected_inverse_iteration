@@ -211,15 +211,20 @@ If you use this package, please cite:
 
 > H. Zhang, V. Armegioiu, J. Carrasquilla, S. Mishra, J. Müller, J. Nys,
 > M. Zeinhofer. *Projected Inverse Iteration: An Eigenvalue Approach to
-> Ground-State Computation with Neural Quantum States.*
+> Ground-State Computation with Neural Quantum States.* 2026.
+> arXiv:2606.07825 [quant-ph]. <https://arxiv.org/abs/2606.07825>
 
 ```bibtex
-@misc{zhang_projected_inverse_iteration,
-  title   = {Projected Inverse Iteration: An Eigenvalue Approach to Ground-State
-             Computation with Neural Quantum States},
-  author  = {Zhang, Hang and Armegioiu, Victor and Carrasquilla, Juan and
-             Mishra, Siddhartha and M\"uller, Johannes and Nys, Jannes and
-             Zeinhofer, Marius},
-  year    = {2025},
+@misc{zhang2026projectedinverseiterationeigenvalue,
+  title         = {Projected Inverse Iteration: An Eigenvalue Approach to
+                   Ground-State Computation with Neural Quantum States},
+  author        = {Hang Zhang and Victor Armegioiu and Juan Carrasquilla and
+                   Siddhartha Mishra and Johannes Müller and Jannes Nys and
+                   Marius Zeinhofer},
+  year          = {2026},
+  eprint        = {2606.07825},
+  archivePrefix = {arXiv},
+  primaryClass  = {quant-ph},
+  url           = {https://arxiv.org/abs/2606.07825},
 }
 ```
